@@ -1,4 +1,5 @@
-// Guest capture + upload logic (photos only)
+// Guest capture + upload logic (photos only). The event is resolved from the
+// subdomain by the Worker, so /api/quota and /api/upload are already scoped.
 
 const $ = (id) => document.getElementById(id);
 const cam = $("cam");
@@ -22,7 +23,7 @@ const MAX_EDGE = 2200;
 let stream = null;
 let facing = "environment";
 let pending = null; // { blob, url }
-let remaining = 5;
+let remaining = 10;
 
 // Restore saved name
 nameInput.value = localStorage.getItem("guestName") || "";
@@ -216,7 +217,7 @@ function resetCapture() {
   captionEl.style.display = "none";
   reviewActions.style.display = "none";
   liveControls.style.display = "flex";
-  placeholder.textContent = "Tap the gold button to start the camera, or choose a photo from your phone below.";
+  placeholder.textContent = "Tap the silver button to start the camera, or choose a photo from your phone below.";
   placeholder.style.display = "block";
 }
 
@@ -251,7 +252,7 @@ async function send() {
     const data = await r.json();
     if (!r.ok) {
       toast(data.message || "Upload failed. Try again.", true);
-      if (data.error === "limit") { remaining = 0; renderQuota(data.limit || 5, data.limit || 5, 0); }
+      if (data.error === "limit") { remaining = 0; renderQuota(data.limit || 10, data.limit || 10, 0); }
     } else {
       remaining = data.remaining;
       showSentPrint();

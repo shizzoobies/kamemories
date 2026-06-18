@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0a1626" />
+<title>Sign in . kamemories</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">ka<span>memories</span></a>
+  <nav><a href="/">Home</a></nav>
+</header>
+
+<div class="auth-wrap">
+  <div class="auth-card">
+    <h1 class="display silvered" style="font-size:2.2rem;margin:0 0 8px">Sign in</h1>
+    <p class="auth-sub">Enter your email and we will send a one-time sign-in link. No password to remember.</p>
+
+    <form id="form">
+      <input id="email" class="auth-input" type="email" placeholder="you@example.com" autocomplete="email" required />
+      <button id="submit" class="btn primary" type="submit" style="margin-top:12px">Email me a link</button>
+    </form>
+
+    <p id="msg" class="auth-msg"></p>
+
+    <div id="sent" class="auth-sent" style="display:none">
+      <p>Check your inbox. We sent a sign-in link to <strong id="sentTo"></strong>.</p>
+      <p class="auth-fine">The link expires in 15 minutes and works once.</p>
+    </div>
+
+    <div id="dev" class="auth-dev" style="display:none">
+      <p class="auth-fine">Dev mode: no email provider is configured, so here is your link.</p>
+      <a id="devLink" href="#"></a>
+    </div>
+  </div>
+</div>
+
+<script src="/login.js"></script>
+</body>
+</html>

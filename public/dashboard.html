@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0a1626" />
+<title>Dashboard . kamemories</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&family=Caveat:wght@500;600&display=swap" rel="stylesheet" />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/app">ka<span>memories</span></a>
+  <nav id="who"></nav>
+</header>
+
+<div id="loading" class="dash-loading">Loading...</div>
+
+<!-- EVENTS LIST -->
+<section class="section dash" id="view-events" style="display:none">
+  <div class="dash-head">
+    <h1 class="gallery-title display">Your events</h1>
+    <button class="btn primary dash-new" id="newBtn" type="button">New event</button>
+  </div>
+  <div class="ev-grid" id="eventsList"></div>
+  <div class="empty" id="eventsEmpty" style="display:none">
+    No events yet. Create your first one to get a shareable QR code and a gallery.
+  </div>
+</section>
+
+<!-- MANAGE ONE EVENT -->
+<section class="section dash" id="view-manage" style="display:none">
+  <button class="dash-back" id="backBtn" type="button">&larr; All events</button>
+  <div class="manage-head">
+    <div class="manage-id">
+      <h1 class="gallery-title display" id="mName">Event</h1>
+      <a class="manage-url" id="mUrl" href="#" target="_blank" rel="noopener"></a>
+    </div>
+    <div class="manage-actions">
+      <button class="btn" id="copyBtn" type="button">Copy capture link</button>
+      <button class="btn" id="qrBtn" type="button">QR code</button>
+      <a class="btn" id="viewBtn" href="#" target="_blank" rel="noopener">View site</a>
+    </div>
+  </div>
+
+  <div class="tabs" id="tabs">
+    <button data-tab="photos" class="active" type="button">Photos</button>
+    <button data-tab="settings" type="button">Settings</button>
+  </div>
+
+  <!-- PHOTOS TAB -->
+  <div id="tab-photos">
+    <div class="cur-stats" id="stats"></div>
+    <div class="cur-toolbar">
+      <div class="seg" id="seg">
+        <button data-f="all" class="active" type="button">All</button>
+        <button data-f="pending" type="button">Pending</button>
+        <button data-f="approved" type="button">Approved</button>
+        <button data-f="featured" type="button">Featured</button>
+      </div>
+      <select id="sort" class="cur-input" aria-label="Sort order">
+        <option value="new">Newest first</option>
+        <option value="old">Oldest first</option>
+      </select>
+      <input id="search" class="cur-input" type="search" placeholder="Search guest" aria-label="Search guest name" />
+      <button id="reviewBtn" class="cur-review-btn" type="button">Review pending</button>
+    </div>
+    <div class="cur-grid" id="grid"></div>
+    <div class="empty" id="photosEmpty" style="display:none">
+      No photos yet. Share your capture link and they appear here as guests post.
+    </div>
+  </div>
+
+  <!-- SETTINGS TAB -->
+  <div id="tab-settings" style="display:none">
+    <form id="settingsForm" class="form-card">
+      <div class="form-grid">
+        <label class="field"><span>Event name</span><input id="sName" type="text" maxlength="80" /></label>
+        <label class="field"><span>Address (subdomain)</span><input id="sSlug" type="text" maxlength="40" /></label>
+        <label class="field"><span>Tagline</span><input id="sTagline" type="text" maxlength="120" placeholder="Together with their families" /></label>
+        <label class="field"><span>Date (free text)</span><input id="sDate" type="text" maxlength="80" placeholder="July 9-12, 2026" /></label>
+        <label class="field"><span>Venue</span><input id="sVenue" type="text" maxlength="120" placeholder="Orlando, Florida" /></label>
+        <label class="field"><span>Daily limit per guest</span><input id="sLimit" type="number" min="1" max="1000" /></label>
+        <label class="field"><span>Status</span>
+          <select id="sStatus">
+            <option value="active">Active (live)</option>
+            <option value="draft">Draft (hidden)</option>
+            <option value="archived">Archived</option>
+          </select>
+        </label>
+      </div>
+      <p id="settingsMsg" class="auth-msg"></p>
+      <div class="row">
+        <button class="btn primary" id="saveBtn" type="submit">Save changes</button>
+        <button class="btn danger-btn" id="deleteEventBtn" type="button">Delete event</button>
+      </div>
+    </form>
+  </div>
+</section>
+
+<!-- CREATE MODAL -->
+<div class="modal" id="createModal">
+  <div class="modal-card">
+    <button class="lb-close" id="createClose" aria-label="Close">&times;</button>
+    <h2 class="display" style="margin:0 0 4px">New event</h2>
+    <p class="auth-sub" style="margin-top:0">Name it and you are live. You can change everything later.</p>
+    <form id="createForm">
+      <label class="field"><span>Event name</span><input id="cName" type="text" maxlength="80" placeholder="Tristin & Cory" required /></label>
+      <label class="field"><span>Address (optional)</span>
+        <div class="slug-row">
+          <input id="cSlug" type="text" maxlength="40" placeholder="tristin-cory" />
+          <span class="slug-suffix">.kamemories.com</span>
+        </div>
+      </label>
+      <label class="field"><span>Date (optional)</span><input id="cDate" type="text" maxlength="80" placeholder="July 9-12, 2026" /></label>
+      <label class="field"><span>Venue (optional)</span><input id="cVenue" type="text" maxlength="120" placeholder="Orlando, Florida" /></label>
+      <p id="createMsg" class="auth-msg"></p>
+      <button class="btn primary" id="createSubmit" type="submit" style="margin-top:6px">Create event</button>
+    </form>
+  </div>
+</div>
+
+<!-- QR MODAL -->
+<div class="modal" id="qrModal">
+  <div class="modal-card">
+    <button class="lb-close" id="qrClose" aria-label="Close">&times;</button>
+    <div id="qrCardArea">
+      <div class="qr-card">
+        <p class="eyebrow">Help us remember today</p>
+        <h2 class="names" id="qrNames">Event</h2>
+        <p class="how">Scan to share your photos</p>
+        <div class="qr" id="qrBox"></div>
+        <p class="how">Point your camera here to post photos to the album.</p>
+        <p class="url" id="qrUrl"></p>
+      </div>
+    </div>
+    <div class="row">
+      <button class="btn" id="qrPrint" type="button">Print this card</button>
+    </div>
+  </div>
+</div>
+
+<!-- REVIEW QUEUE -->
+<div class="review" id="review">
+  <button class="lb-close" id="reviewClose" aria-label="Close review">&times;</button>
+  <div class="review-inner">
+    <div class="review-photo" id="reviewPhoto" role="img" aria-label="Photo under review"></div>
+    <div class="review-meta" id="reviewMeta"></div>
+    <div class="review-progress" id="reviewProgress"></div>
+    <div class="review-actions">
+      <button id="rSkip" class="btn ghost" type="button">Skip</button>
+      <button id="rFeature" class="btn" type="button">Feature</button>
+      <button id="rApprove" class="btn primary" type="button">Approve</button>
+    </div>
+    <button id="rRemove" class="review-remove" type="button">Remove this photo</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script src="/dashboard.js"></script>
+</body>
+</html>

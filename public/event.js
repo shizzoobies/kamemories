@@ -1,4 +1,6 @@
-// Landing page: optional hero backdrop plus the featured photo strip.
+// Event landing: fill the names and details from the event, then show the
+// featured photo strip. Everything is scoped to this subdomain's event by the
+// Worker, so the relative /api calls return only this event's data.
 
 const F = (id) => document.getElementById(id);
 
@@ -6,21 +8,42 @@ function mediaUrl(p) {
   return "/media/" + encodeURIComponent(p.thumb_key || p.r2_key);
 }
 
-// If a hero image has been added at /assets/hero.jpg, place it behind the names.
-// Until then the navy hero stands on its own.
-(function heroPhoto() {
-  const el = F("heroPhoto");
-  if (!el) return;
-  const img = new Image();
-  img.onload = () => {
-    el.style.backgroundImage = "url('/assets/hero.jpg')";
-    el.classList.add("show");
-  };
-  img.src = "/assets/hero.jpg";
-})();
+function initials(name) {
+  const parts = (name || "").split(/[^A-Za-z0-9]+/).filter(Boolean);
+  if (!parts.length) return "";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
 
-// The home strip shows the most recent featured photos. The rest still live in the
-// full gallery (every approved photo is there).
+function setText(id, val) {
+  const el = F(id);
+  if (el && val) el.textContent = val;
+}
+
+async function loadEvent() {
+  try {
+    const r = await fetch("/api/event");
+    if (!r.ok) return;
+    const { event } = await r.json();
+    if (!event) return;
+    document.title = event.name;
+    setText("brand", event.name);
+    setText("names", event.name);
+    setText("footName", event.name);
+    const mono = F("monogram");
+    if (mono) mono.textContent = initials(event.name);
+    if (event.tagline) setText("eyebrow", event.tagline);
+    if (event.event_date) setText("date", event.event_date);
+    if (event.venue) setText("venue", event.venue);
+    const footMeta = F("footMeta");
+    if (footMeta) {
+      const bits = [event.event_date, event.venue].filter(Boolean);
+      footMeta.textContent = bits.join("  .  ");
+    }
+  } catch {}
+}
+
+// ---- Featured strip ----
 const STRIP_MAX = 15;
 
 function makeStripCard(p) {
@@ -31,7 +54,7 @@ function makeStripCard(p) {
   const img = document.createElement("img");
   img.src = mediaUrl(p);
   img.loading = "lazy";
-  img.alt = p.caption || "A photo from the weekend";
+  img.alt = p.caption || "A photo from the celebration";
   card.appendChild(img);
 
   const label = p.caption || p.guest_name;
@@ -44,8 +67,8 @@ function makeStripCard(p) {
   return card;
 }
 
-// Slow, seamless drift. Pauses on touch or hover, resumes after, and stays still for
-// anyone who prefers reduced motion.
+// Slow, seamless drift. Pauses on touch or hover, resumes after, and stays still
+// for anyone who prefers reduced motion.
 function autoGlide(strip, loopWidth) {
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   let paused = false;
@@ -89,8 +112,6 @@ async function loadStrip() {
   strip.innerHTML = "";
   for (const p of featured) strip.appendChild(makeStripCard(p));
 
-  // If the row is longer than the viewport, duplicate it once so the drift loops
-  // seamlessly. With only a few photos it just sits still.
   requestAnimationFrame(() => {
     if (strip.scrollWidth <= strip.clientWidth + 8) return;
     const second = featured.map(makeStripCard);
@@ -100,4 +121,5 @@ async function loadStrip() {
   });
 }
 
+loadEvent();
 loadStrip();

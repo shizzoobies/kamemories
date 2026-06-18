@@ -1,3 +1,11 @@
 # Local development only. Copy this file to .dev.vars for `npm run dev`.
 # .dev.vars is gitignored. Never commit a real key.
-ALBUM_KEY="local-dev-key-change-me"
+
+# Transactional email for magic-link login. Without it, login runs in DEV MODE:
+# the request endpoint returns the magic link directly in its JSON response
+# (and logs it) instead of emailing it. Set this in production.
+RESEND_API_KEY=""
+
+# Billing (added in a later pass):
+# STRIPE_SECRET_KEY=""
+# STRIPE_WEBHOOK_SECRET=""

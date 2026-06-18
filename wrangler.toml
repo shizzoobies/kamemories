@@ -1,47 +1,55 @@
-name = "wedding-photos"
+name = "kamemories"
 main = "src/index.js"
 account_id = "c8f0f7697e2801ba2acabb700b5da793"
 compatibility_date = "2025-01-01"
 
-# Custom domain for the guest QR link. tandcknot.com is registered in this Cloudflare
-# account (Cloudflare Registrar), so the DNS record and TLS certificate are provisioned
-# on deploy. For a subdomain instead, set pattern = "photos.tandcknot.com".
-[[routes]]
-pattern = "tandcknot.com"
-custom_domain = true
-
-# Capture app lives on its own subdomain. Same Worker, the root serves capture.html.
-[[routes]]
-pattern = "pics.tandcknot.com"
-custom_domain = true
-
-# Static guest and gallery pages live in ./public and are served automatically.
-# The Worker only runs for /api/* and /media/* (anything with no matching file).
+# One Worker serves every host. With run_worker_first the Worker runs for all
+# requests and decides what to serve based on the hostname:
+#   kamemories.com / www.kamemories.com  -> control plane (marketing, login, dashboard)
+#   {slug}.kamemories.com                -> one event (landing, gallery, guest capture)
+# Static files in ./public are served by the Worker via the ASSETS binding.
 [assets]
 directory = "./public"
 binding = "ASSETS"
-# Run the Worker before assets for the root only, so each host gets the right home page:
-# pics.tandcknot.com serves the capture app, the apex serves the landing.
-run_worker_first = ["/"]
+run_worker_first = true
+
+# Apex (control plane). kamemories.com must be added to this Cloudflare account
+# as a zone (Cloudflare Registrar or an existing zone) for these routes to bind.
+[[routes]]
+pattern = "kamemories.com/*"
+zone_name = "kamemories.com"
+
+# Every subdomain is an event, served by the same Worker. Requires a proxied
+# wildcard DNS record (*.kamemories.com) in the zone. www and other reserved
+# labels (see RESERVED_SUBDOMAINS) are handled as the control plane in code.
+[[routes]]
+pattern = "*.kamemories.com/*"
+zone_name = "kamemories.com"
 
 [vars]
-EVENT_NAME = "Tristin & Cory"
-DAILY_LIMIT = "10"
-# Hostname that serves the guest capture app (its root shows the camera, not the landing).
-CAPTURE_HOST = "pics.tandcknot.com"
-# ALBUM_KEY is a secret. Do not put it here. Set it with:
-#   npx wrangler secret put ALBUM_KEY
-# The couple opens the album at /gallery.html?k=THAT_KEY
+# Root domain. Anything that is not this host (or www.) and ends in .ROOT_HOST is
+# treated as an event subdomain whose label is the event slug.
+ROOT_HOST = "kamemories.com"
+# Subdomain labels that are never treated as event slugs (comma separated).
+RESERVED_SUBDOMAINS = "www,app,api,mail,static,assets,cdn,admin,pics,help,support,blog,status,dev"
+# From address for magic-link login email.
+MAIL_FROM = "KA Memories <login@kamemories.com>"
+# Secrets (set with `npx wrangler secret put NAME`):
+#   RESEND_API_KEY        transactional email. Without it, login runs in dev mode
+#                         and returns the magic link in the API response instead of
+#                         sending it. Never run production without this set.
+#   STRIPE_SECRET_KEY     billing, added in a later pass.
+#   STRIPE_WEBHOOK_SECRET billing, added in a later pass.
 
-# D1 database. Create it once, then paste the id below.
-#   npx wrangler d1 create wedding-photos
+# D1 database. Create it once, then paste the printed id below.
+#   npx wrangler d1 create kamemories
 [[d1_databases]]
 binding = "DB"
-database_name = "wedding-photos"
-database_id = "12ffa9a7-0eb0-482b-8a65-f61fd4dd9037"
+database_name = "kamemories"
+database_id = "REPLACE_WITH_KAMEMORIES_D1_ID"
 
-# R2 bucket for the actual photo and video files.
-#   npx wrangler r2 bucket create wedding-photos
+# R2 bucket for the actual photo files.
+#   npx wrangler r2 bucket create kamemories
 [[r2_buckets]]
 binding = "BUCKET"
-bucket_name = "wedding-photos"
+bucket_name = "kamemories"

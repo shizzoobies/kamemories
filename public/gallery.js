@@ -1,4 +1,5 @@
-// Public approved gallery. No key needed: the API and media are public for approved photos.
+// Public approved gallery. No key needed: the API and media are public for
+// approved photos. The event is resolved from the subdomain by the Worker.
 
 const $ = (id) => document.getElementById(id);
 let photos = [];
@@ -14,6 +15,18 @@ function fmtTime(ms) {
 const PAGE = 60;
 let cursor = 0;
 let io = null;
+
+async function loadEventName() {
+  try {
+    const r = await fetch("/api/event");
+    if (!r.ok) return;
+    const { event } = await r.json();
+    if (event && event.name) {
+      $("brand").textContent = event.name;
+      document.title = "The gallery . " + event.name;
+    }
+  } catch {}
+}
 
 async function load() {
   try {
@@ -70,7 +83,7 @@ function buildTile(p, i) {
   const img = document.createElement("img");
   img.src = thumbUrl(p);
   img.loading = "lazy";
-  img.alt = p.caption || "Wedding photo";
+  img.alt = p.caption || "Event photo";
   tile.appendChild(img);
 
   if (p.caption) {
@@ -120,4 +133,5 @@ function closeLightbox() {
 }
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeLightbox(); });
 
+loadEventName();
 load();
