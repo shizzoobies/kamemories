@@ -4,93 +4,148 @@ Project memory for Claude Code. Read this before changing anything.
 
 ## What this is
 
-A premium wedding website and photo collector for Tristin & Cory, running entirely on Cloudflare (Workers + D1 + R2). One Worker serves two domains:
+kamemories is a commercial, multi-tenant photo collection app for events, on
+Cloudflare (Workers + D1 + R2). One Worker serves every host. Event organizers
+sign up, create an event, and get their own subdomain with a QR code their
+guests scan to share photos. The organizer curates which photos go public.
 
-- tandcknot.com: the public site. A landing page (hero, the couple's names, date, and venue, a "from the weekend" featured strip, and a link to the gallery), a public approved gallery at /gallery, and the couple's curation console at /curate.
-- pics.tandcknot.com: the guest capture app. This is where the QR code points.
+It grew out of tandcknot, a single wedding photo app (kept unaltered as a
+reference at `D:\tandcknot`, repo https://github.com/shizzoobies/tandcknot).
+kamemories generalizes that idea into a product you can sell access to.
 
-Guests take or pick a photo on pics.tandcknot.com. Every upload lands pending, visible to no one public. The couple approves photos into the public gallery from /curate, and can feature a subset on the home page. Nothing is public until they approve it.
+### The two planes
 
-Built by Alex for the couple. Wedding is July 9 to 12, 2026 in Orlando.
+- Control plane: `kamemories.com` and `www.kamemories.com`. The marketing site,
+  magic-link login, and the organizer dashboard (create and manage events,
+  curate photos). Everything here is the SaaS itself.
+- Event plane: `{slug}.kamemories.com`. One event per subdomain. Serves that
+  event's public landing, gallery, and the guest capture app the QR points to.
+
+### Product decisions (locked unless asked)
+
+- Tenancy by subdomain. Each event is `{slug}.kamemories.com`, resolved from the
+  hostname. A single wildcard route serves them all.
+- Organizer auth is a passwordless email magic link. No Cloudflare Access (that
+  cannot self-serve customers). Sessions are cookies, hashed in the DB.
+- Monetization is one-time payment per event, via Stripe. NOT YET BUILT. The
+  schema is ready: `events.status`, `events.plan`, `events.paid_at`. New events
+  are currently created `active` with no paywall. Billing is a later pass.
+- Per event, two-tier curation: uploads land pending (approved = 0); approve
+  sends a photo to the public gallery; feature also shows it on the event home
+  strip and implies approval. Pending media is private.
+- Photos only. Per-guest daily upload cap, server enforced via an anonymous
+  device cookie (gid), scoped per event. Quota day rolls over at the event's
+  `rollover_h` on its `event_tz`.
+- Theme is Midnight Pearl (deep navy, brushed silver `--sheen`, warm ivory).
+  Fonts Fraunces is not used; we use Playfair Display (display) and Hanken
+  Grotesk (UI), with Caveat for handwritten captions.
 
 ## Hard rules
 
-- No em dashes. Ever. Not in code comments, UI copy, docs, or commit messages. Use periods, commas, parentheses, or restructure. Verify with a grep for the em and en dash characters across our files (not node_modules) and confirm it returns nothing.
-- No frontend build step and no frontend dependencies. Plain HTML, CSS, and vanilla JS in public/. The only browser-loaded externals are Google Fonts and, on qr.html only, a QR library from a CDN.
-- No new backend dependencies beyond Wrangler. The Worker is a single file of plain JS using only the Workers runtime (D1, R2, assets, Intl, crypto).
-
-## Locked product decisions
-
-Do not reverse these without being asked.
-
-- Two-tier curation. Uploads land pending (approved = 0). Approve sends a photo to the public gallery. Feature also shows it on the home page strip, and implies approval. Owner only, via ALBUM_KEY.
-- Pending photos are private. They never appear in any public API, and their media returns 401 without the owner key. Approved media is public.
-- Photos only. No video. The client and the Worker both reject non-images.
-- 10 posts per day per phone, server enforced, anonymous device cookie (gid). Best effort by design.
-- The quota day rolls over at 2am Eastern (Orlando is Eastern). Controlled by EVENT_TZ and DAY_ROLLOVER_HOURS in src/index.js.
-- Palette is Midnight Pearl: deep navy base, brushed silver accent (the --sheen gradient), warm ivory, slate. Fonts Fraunces (display) and Hanken Grotesk (UI). Do not reintroduce the old warm dusk gold.
-- The capture app lives on pics.tandcknot.com. The apex is the landing.
+- No em dashes or en dashes. Ever. Not in code, UI copy, docs, or commit
+  messages. Use periods, commas, parentheses, or restructure. Verify with a grep
+  for the em and en dash characters across our files (not node_modules / not
+  package-lock.json) and confirm it returns nothing.
+- No frontend build step and no frontend dependencies. Plain HTML, CSS, and
+  vanilla JS in `public/`. The only browser-loaded externals are Google Fonts
+  and, on the dashboard only, a QR library from a CDN.
+- No new backend dependencies beyond Wrangler. The Worker is a single file of
+  plain JS using only the Workers runtime (D1, R2, assets, Intl, crypto, fetch).
+  Email (Resend) and, later, Stripe are called over fetch, not via SDKs.
+- Do not alter the tandcknot reference. It is a read-only source of ideas.
 
 ## Architecture and routing
 
-One Worker (src/index.js) bound to two custom domains. The Worker handles /api/* and /media/*; everything else is a static asset from public/.
+One Worker (`src/index.js`). `wrangler.toml` sets `run_worker_first = true`, so
+the Worker runs for every request and decides what to do from the hostname.
+`hostInfo(url, env)` classifies a request as `control` or `event` (with a slug).
+Reserved subdomain labels (`RESERVED_SUBDOMAINS`) and `www` are control plane.
+Local dev maps `localhost` to control and `{slug}.localhost` to an event.
 
-The root path is special. `[assets] run_worker_first = ["/"]` in wrangler.toml makes the Worker run before assets for "/", so it can serve the capture page on pics (it fetches the extensionless /capture, not /capture.html, to avoid the assets redirect) and the landing on the apex.
+Static files in `public/` are served by the Worker through the ASSETS binding.
+Clean URLs (`/`, `/login`, `/app`, `/gallery`, `/add`) are mapped to their
+`.html` files in the router; other paths fall through to ASSETS.
 
 ## Stack and bindings
 
-- DB to a D1 database named wedding-photos
-- BUCKET to an R2 bucket named wedding-photos
-- ASSETS to static files in public/
-- Vars: EVENT_NAME, DAILY_LIMIT, CAPTURE_HOST
-- Secret: ALBUM_KEY (the owner and curation key)
+- DB to a D1 database named `kamemories`.
+- BUCKET to an R2 bucket named `kamemories`.
+- ASSETS to static files in `public/`.
+- Vars: `ROOT_HOST`, `RESERVED_SUBDOMAINS`, `MAIL_FROM`.
+- Secrets: `RESEND_API_KEY` (magic-link email; absent = dev mode that returns
+  the link in the API response). Later: `STRIPE_SECRET_KEY`,
+  `STRIPE_WEBHOOK_SECRET`.
 
 ## File map
 
 ```
-wrangler.toml          bindings, vars, routes, run_worker_first, account_id
-schema.sql             D1 table and indexes
-migrations/            additive D1 migrations (0001 adds curation columns)
-src/index.js           the Worker: routing, quota, upload, public and owner photos, approve, feature, media
-public/index.html      landing (loads index.js)
-public/index.js        landing: hero photo, featured strip
-public/capture.html    guest capture app, served on pics, loads app.js
-public/app.js          camera, capture, downscale, thumbnail, upload, quota UI
-public/gallery.html    public approved gallery, loads gallery.js
-public/gallery.js      gallery grid, infinite scroll, lightbox, download
-public/curate.html     owner curation console, loads curate.js
-public/curate.js       approve, feature, remove, filter by status
-public/qr.html         printable QR card, points to pics
-public/styles.css      Midnight Pearl theme for all pages
+wrangler.toml          bindings, vars, wildcard routes, run_worker_first, account_id
+schema.sql             D1 tables and indexes (canonical, used by db:init)
+migrations/0001_init.sql  same schema as a wrangler d1 migration
+src/index.js           the Worker: host routing, auth, events, curation, media
+public/home.html       marketing landing (apex)
+public/login.html|js   magic-link request and "check your email" state
+public/dashboard.html|js  organizer console: events list, create, curate, settings, QR
+public/event.html|js   per-event public landing (subdomain), fills from /api/event
+public/gallery.html|js public approved gallery (subdomain)
+public/add.html        guest capture page (subdomain), the QR target
+public/capture.js      camera, capture, downscale, thumbnail, upload, quota UI
+public/event-404.html  shown on a subdomain with no active event
+public/styles.css      Midnight Pearl theme plus the commercial layer
 public/favicon.svg     navy and silver mark
-public/assets/hero.jpg landing hero photo, optional, auto-detected
 ```
 
 ## API contract
 
-- GET /api/quota returns {used, limit, remaining, event}. Sets the gid cookie if missing.
-- POST /api/upload (multipart: file, optional thumb, kind, caption, name) returns {ok, id, remaining, limit}. Lands approved = 0. Errors: 429 limit, 400 bad or no file, 413 over MAX_BYTES, 415 non-image.
-- GET /api/public/photos?scope=gallery|featured is public and returns approved (or featured) photos only.
-- GET /api/photos (owner key) returns all photos with curation state.
-- POST /api/photos/approve (owner, JSON {id, approved}). Unapproving also unfeatures.
-- POST /api/photos/feature (owner, JSON {id, featured}). Featuring implies approval.
-- POST /api/photos/delete (owner, JSON {id}) deletes the row and both R2 objects.
-- GET /media/:key is public when the photo is approved, otherwise the owner key is required. Thumbnail keys (uuid.t.ext) map back to the full row for the check.
+Control plane (kamemories.com), session via the `sid` cookie:
+- POST `/api/auth/request` {email}. Creates the organizer if new, emails a magic
+  link. Returns {ok:true}; in dev mode also {devLink}.
+- GET `/auth/verify?token=` consumes a single-use token, sets the session
+  cookie, and 302s to `/app`. On failure 302s to `/login?error=`.
+- GET `/api/auth/me` returns {organizer:{email,name}} or 401.
+- POST `/api/auth/logout` clears the session.
+- GET `/api/events` lists the organizer's events with counts.
+- POST `/api/events` {name, slug?, tagline?, event_date?, venue?, ...} creates one.
+- GET|PATCH|DELETE `/api/events/:id` reads, updates, or deletes (owner only).
+- GET `/api/events/:id/photos` returns {event, photos} for curation.
+- POST `/api/photos/:id/(approve|feature|delete)` curate a photo (owner of its event).
+- GET `/owner-media/:key` serves any of the organizer's media, pending included.
+
+Event plane ({slug}.kamemories.com), scoped to the resolved event:
+- GET `/api/event` public event info.
+- GET `/api/quota` returns {used, limit, remaining, event}. Sets gid cookie.
+- POST `/api/upload` (multipart) lands approved = 0. Errors 429/400/413/415.
+- GET `/api/public/photos?scope=gallery|featured` approved (or featured) only.
+- GET `/media/:key` public only for this event's approved photos, else 401.
+
+A missing or non-active event returns 404 for API/media and the event-404 page
+for navigations.
 
 ## D1 schema
 
-uploads(id, gid, day, created_at, r2_key, thumb_key, kind, content_type, size, caption, guest_name, approved, featured, approved_at), with indexes on (gid, day), (created_at desc), (approved, approved_at desc), (featured, approved_at desc), and (r2_key). R2 key format: {eventSlug}/{day}/{uuid}.{ext}; the thumbnail is the same with a .t before the extension.
+`organizers`, `login_tokens` (token_hash), `sessions` (id_hash), `events`,
+`uploads`. Tokens and session ids are stored as sha-256 hashes, never raw.
+`uploads` is scoped by `event_id`; R2 key format is `{event_id}/{day}/{uuid}.{ext}`
+and the thumbnail is the same with a `.t` before the extension. See `schema.sql`.
 
 ## Worker constants
 
-MAX_BYTES = 50MB, ALLOWED_PREFIXES = ["image/"], EVENT_TZ = America/New_York, DAY_ROLLOVER_HOURS = 2. Client MAX_EDGE = 2200, thumbnail long edge 480.
+`MAX_BYTES` = 50MB, `ALLOWED_PREFIXES` = ["image/"], login token TTL 15 min,
+session TTL 30 days. Client `MAX_EDGE` = 2200, thumbnail long edge 480. Per-event
+`daily_limit`, `event_tz`, and `rollover_h` live on the event row.
 
 ## Deploy and dev
 
-wrangler is authed. Deploy with `npm run deploy`. A GitHub Actions workflow deploys on push to main once the CLOUDFLARE_API_TOKEN repo secret is set. D1 changes go in migrations/ and run with `npx wrangler d1 execute wedding-photos --remote --file=...`.
-
-Owner console: tandcknot.com/curate?k=ALBUM_KEY (the key is remembered and stripped from the URL). QR card: tandcknot.com/qr. Hero photo: drop a landscape image at public/assets/hero.jpg.
+See `BUILD.md`. In short: create the `kamemories` D1 and R2, paste the D1 id into
+`wrangler.toml`, run `npm run db:init`, add the apex and wildcard routes plus a
+proxied `*.kamemories.com` DNS record, set `RESEND_API_KEY`, then `npm run deploy`.
+Local: `npm run dev`, then visit `http://localhost:8787` (control) and
+`http://<slug>.localhost:8787` (event). Without `RESEND_API_KEY`, login returns
+the magic link in the response.
 
 ## Conventions
 
-Keep the Worker a single file with small named helpers. Keep the frontend framework free and readable. UI copy is warm and short. The theme is Midnight Pearl in styles.css.
+Keep the Worker a single file with small named helpers. Keep the frontend
+framework free and readable. UI copy is warm and short. Authoring and review are
+separate passes: never self-approve curation logic or auth changes without a
+second look.
