@@ -1,0 +1,28 @@
+name: Deploy to Cloudflare
+
+# Ships the Worker on every push to main. Requires one repo secret:
+# CLOUDFLARE_API_TOKEN (Workers Scripts edit, D1 edit, R2 edit, Workers Routes edit).
+# The account id lives in wrangler.toml, so no second secret is needed.
+# Until the secret is added, the deploy step is skipped and the run stays green.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - name: Deploy
+        if: ${{ env.CF_API_TOKEN != '' }}
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ env.CF_API_TOKEN }}

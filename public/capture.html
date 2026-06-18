@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#14110f" />
+<title>Share a moment</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<div class="wrap">
+  <header class="event-head">
+    <p class="event-eyebrow">Share a moment with</p>
+    <h1 class="event-name display" id="eventName">Our Wedding</h1>
+    <p class="event-sub">Capture the moments we will miss. Snap a photo and send it straight to the couple, who pick their favorites for the wall.</p>
+    <div class="quota" id="quota" aria-live="polite">
+      <span class="dots" id="dots"></span>
+      <span id="quotaText">Loading...</span>
+    </div>
+  </header>
+
+  <main class="stage">
+    <div class="viewfinder">
+      <video id="cam" playsinline muted autoplay style="display:none"></video>
+      <img id="preview" class="preview" alt="Your photo" style="display:none" />
+      <div class="placeholder" id="placeholder">Tap the gold button to start the camera, or choose something from your phone below.</div>
+      <div class="flash" id="flash"></div>
+    </div>
+
+    <div class="controls controls-centered" id="liveControls">
+      <span class="ctrl-spacer" aria-hidden="true"></span>
+      <button id="shutter" class="shutter" type="button" aria-label="Take photo"></button>
+      <button id="flipBtn" class="icon-btn" type="button" aria-label="Flip camera">&#x21bb;</button>
+    </div>
+  </main>
+
+  <div class="row" id="reviewActions" style="display:none">
+    <button id="retakeBtn" class="btn ghost" type="button">Retake</button>
+    <button id="sendBtn" class="btn primary" type="button">Send to the couple</button>
+  </div>
+
+  <textarea id="caption" class="caption-field" rows="2" placeholder="Say something (optional)" style="display:none"></textarea>
+
+  <div class="row">
+    <button id="libraryBtn" class="btn" type="button">Choose from my phone</button>
+  </div>
+  <input id="nameInput" class="name-field" type="text" placeholder="Your name (so we know who to thank)" autocomplete="name" />
+  <input id="fileInput" type="file" accept="image/*" style="display:none" />
+
+  <p class="foot">Up to <span id="limitNote">5</span> posts a day, per phone. The couple curates the album.</p>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="sent-stack" id="sentStack"><div class="print" id="sentPrint"></div></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

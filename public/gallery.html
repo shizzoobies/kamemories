@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0a1626" />
+<title>The gallery &middot; Tristin &amp; Cory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&family=Caveat:wght@500;600&display=swap" rel="stylesheet" />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">Tristin <span>&amp;</span> Cory</a>
+  <nav>
+    <a href="/">Home</a>
+    <a class="pill" href="https://pics.tandcknot.com">Add photos</a>
+  </nav>
+</header>
+
+<div class="gallery-head">
+  <h1 class="gallery-title display">The gallery</h1>
+  <span class="gallery-count" id="albumCount"></span>
+</div>
+<div class="grid" id="grid"></div>
+<div class="empty" id="empty" style="display:none">
+  No photos here yet. They appear as guests share them and the couple approves their favorites.
+  In the meantime, <a href="https://pics.tandcknot.com">add yours</a>.
+</div>
+
+<div class="lightbox" id="lightbox">
+  <button class="lb-close" id="lbClose" aria-label="Close">&times;</button>
+  <div id="lbContent"></div>
+  <div class="lb-caption" id="lbCaption"></div>
+  <div class="lb-meta" id="lbMeta"></div>
+  <div class="lb-actions">
+    <a id="lbDownload" class="btn" download>Download</a>
+  </div>
+</div>
+
+<script src="/gallery.js"></script>
+</body>
+</html>

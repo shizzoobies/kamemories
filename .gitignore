@@ -1,0 +1,11 @@
+node_modules/
+.wrangler/
+.dev.vars
+dist/
+*.log
+.DS_Store
+.omc/
+.claude/
+
+# Local photo drop-offs, not part of the app (the hero lives in public/assets)
+Test*.jpg
