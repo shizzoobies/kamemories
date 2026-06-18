@@ -10,3 +10,6 @@ dist/
 
 # Local photo drop-offs, not part of the app (the hero lives in public/assets)
 Test*.jpg
+
+# Source video originals (the web-optimized copies live in public/videos)
+Assets/
