@@ -452,8 +452,7 @@ $("createForm").addEventListener("submit", async (e) => {
     closeModal("createModal");
     $("createForm").reset();
     await loadEvents();
-    location.hash = "#/e/" + data.event.id;
-    if (location.hash === "#/e/" + data.event.id) route();
+    location.hash = "#/e/" + data.event.id; // hashchange triggers openManage
   } catch {
     setMsg("createMsg", "No connection. Try again.", true);
   } finally {

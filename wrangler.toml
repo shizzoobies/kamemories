@@ -12,6 +12,10 @@ compatibility_date = "2025-01-01"
 directory = "./public"
 binding = "ASSETS"
 run_worker_first = true
+# Serve exact asset paths only. The Worker maps clean URLs (/, /login, /app,
+# /gallery, /add) to their .html files; without this, an asset fetch for a
+# .html file 307-redirects to its extensionless form.
+html_handling = "none"
 
 # Apex (control plane). kamemories.com must be added to this Cloudflare account
 # as a zone (Cloudflare Registrar or an existing zone) for these routes to bind.
