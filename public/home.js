@@ -1,18 +1,21 @@
-// Rotating cinematic background. Two stacked <video> layers crossfade through
-// the four clips: each plays a couple of seconds, then softly dissolves into the
-// next, looping forever. As soon as the visitor scrolls off the top, the frame
-// freezes wherever it is; it resumes when they return to the top. If the files
-// are absent or cannot autoplay, the gradient base (CSS) remains, which is a
-// finished look on its own. Honors reduced-motion by holding a single frame.
+// Cinematic background. Two stacked <video> layers play one real wedding clip
+// at a time, all the way through, then very slowly dissolve into the next, and
+// cycle through all five. No clip loops or repeats back-to-back, so the backdrop
+// stays smooth and never jumps. The moment the visitor scrolls off the top, the
+// current frame freezes; it resumes when they return to the top. If the files
+// are missing or autoplay is blocked, the gradient base (CSS) carries the look.
+// Honors reduced-motion by holding a single still frame.
 
 const SOURCES = [
-  "/videos/beach.mp4",
-  "/videos/mountain.mp4",
-  "/videos/ranch.mp4",
-  "/videos/church.mp4",
+  "/videos/v1-beach.mp4",
+  "/videos/v2-ceremony.mp4",
+  "/videos/v3-vows.mp4",
+  "/videos/v4-cake.mp4",
+  "/videos/v5-toss.mp4",
 ];
-const HOLD_MS = 2500; // each clip is fully shown for about this long
-const FADE_MS = 1800; // soft dissolve; must match the .bg-video opacity transition
+const FADE_MS = 3000; // very slow dissolve; must match the .bg-video opacity transition
+const TAIL_S = 3.4;   // begin the dissolve this many seconds before a clip ends
+const MIN_S = 2.5;    // but always show a clip at least this long (guards short clips)
 
 const a = document.getElementById("bgA");
 const b = document.getElementById("bgB");
@@ -22,7 +25,7 @@ if (a && b && SOURCES.length) {
   let idx = 0;
   let front = a;
   let back = b;
-  let timer = null;
+  let transitioning = false;
   let frozen = false;
 
   const play = (el) => {
@@ -30,44 +33,55 @@ if (a && b && SOURCES.length) {
     const p = el.play();
     if (p && typeof p.catch === "function") p.catch(() => {});
   };
+  const prep = (el, src) => {
+    el.loop = false;
+    el.muted = true;
+    if (el.getAttribute("src") !== src) { el.setAttribute("src", src); el.load(); }
+  };
 
-  // Bring up the first clip.
-  front.src = SOURCES[0];
-  front.addEventListener("loadeddata", () => { front.classList.add("show"); if (!frozen) play(front); }, { once: true });
-  front.load();
+  // First clip up, next clip preloaded on the back layer.
+  prep(front, SOURCES[0]);
+  front.addEventListener("loadeddata", () => { front.classList.add("show"); if (!frozen && !reduce) play(front); }, { once: true });
+  prep(back, SOURCES[1 % SOURCES.length]);
 
-  const cycle = () => {
-    if (frozen) return;
+  // Drive the crossfade off the visible clip nearing its end, not a fixed timer,
+  // so each clip plays through and there is never a loop seam or hard cut.
+  const onProgress = (e) => {
+    if (transitioning || frozen || reduce || e.target !== front) return;
+    const d = front.duration;
+    if (d && isFinite(d) && front.currentTime >= Math.max(MIN_S, d - TAIL_S)) advance();
+  };
+  const onEnded = (e) => { if (!transitioning && !frozen && !reduce && e.target === front) advance(); };
+  a.addEventListener("timeupdate", onProgress);
+  b.addEventListener("timeupdate", onProgress);
+  a.addEventListener("ended", onEnded);
+  b.addEventListener("ended", onEnded);
+
+  function advance() {
+    if (transitioning || frozen || reduce) return;
+    transitioning = true;
     const next = (idx + 1) % SOURCES.length;
-    back.src = SOURCES[next];
-    const reveal = () => {
-      if (frozen) return;
-      play(back);
+    prep(back, SOURCES[next]);
+
+    const go = () => {
+      try { back.currentTime = 0; } catch (_) {}
+      if (!frozen) play(back);
       back.classList.add("show");
       front.classList.remove("show");
       setTimeout(() => {
         front.pause();
-        const tmp = front;
-        front = back;
-        back = tmp;
+        const tmp = front; front = back; back = tmp;
         idx = next;
+        transitioning = false;
+        prep(back, SOURCES[(idx + 1) % SOURCES.length]); // preload the following clip
       }, FADE_MS);
     };
-    if (back.readyState >= 3) reveal();
-    else back.addEventListener("canplay", reveal, { once: true });
-    back.load();
-  };
 
-  const startRotation = () => {
-    if (!reduce && SOURCES.length > 1 && timer === null) timer = setInterval(cycle, HOLD_MS + FADE_MS);
-  };
-  const stopRotation = () => {
-    if (timer !== null) { clearInterval(timer); timer = null; }
-  };
+    if (back.readyState >= 3) go();
+    else { back.addEventListener("canplay", go, { once: true }); back.load(); }
+  }
 
-  startRotation();
-
-  // Freeze on scroll, resume at the top.
+  // Freeze the current frame on scroll, resume at the top.
   let ticking = false;
   window.addEventListener("scroll", () => {
     if (ticking) return;
@@ -76,13 +90,11 @@ if (a && b && SOURCES.length) {
       const atTop = window.scrollY <= 8;
       if (!atTop && !frozen) {
         frozen = true;
-        stopRotation();
         front.pause();
         back.pause();
       } else if (atTop && frozen) {
         frozen = false;
-        play(front);
-        startRotation();
+        if (!reduce) play(front);
       }
       ticking = false;
     });
