@@ -17,15 +17,16 @@ run_worker_first = true
 # .html file 307-redirects to its extensionless form.
 html_handling = "none"
 
-# Apex (control plane). kamemories.com must be added to this Cloudflare account
-# as a zone (Cloudflare Registrar or an existing zone) for these routes to bind.
+# Apex (control plane). custom_domain makes wrangler provision the apex DNS
+# record and TLS certificate automatically on deploy.
 [[routes]]
-pattern = "kamemories.com/*"
-zone_name = "kamemories.com"
+pattern = "kamemories.com"
+custom_domain = true
 
-# Every subdomain is an event, served by the same Worker. Requires a proxied
-# wildcard DNS record (*.kamemories.com) in the zone. www and other reserved
-# labels (see RESERVED_SUBDOMAINS) are handled as the control plane in code.
+# Every subdomain is an event, served by the same Worker. This route needs a
+# proxied wildcard DNS record (*.kamemories.com) in the zone, which a custom
+# domain cannot create. www and other reserved labels (see RESERVED_SUBDOMAINS)
+# are handled as the control plane in code.
 [[routes]]
 pattern = "*.kamemories.com/*"
 zone_name = "kamemories.com"
