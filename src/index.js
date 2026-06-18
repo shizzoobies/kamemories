@@ -21,6 +21,28 @@ const LOGIN_TOKEN_TTL_MS = 15 * 60 * 1000; // magic link valid for 15 minutes
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // session valid for 30 days
 const GID_MAX_AGE = 60 * 60 * 24 * 60; // guest device cookie, 60 days
 
+// One-time pricing tiers. amount is in US cents. guests = 0 means unlimited.
+// daily is the per-guest daily upload cap. Amounts are always read from here on
+// the server, never trusted from the client.
+const PLANS = {
+  intimate:  { label: "Intimate",  amount: 4900,  guests: 75,  daily: 10, video: false, download: false, badge: true,  priority: false },
+  signature: { label: "Signature", amount: 9900,  guests: 200, daily: 20, video: true,  download: true,  badge: false, priority: false },
+  grand:     { label: "Grand",     amount: 14900, guests: 0,   daily: 30, video: true,  download: true,  badge: false, priority: true  },
+};
+function planFor(event) {
+  return event && event.plan && PLANS[event.plan] ? PLANS[event.plan] : null;
+}
+function billingOn(env) {
+  return !!env.STRIPE_SECRET_KEY;
+}
+// Per-guest daily cap in force: the plan's cap, never above what the organizer
+// set in settings. Free events (no plan) use their own daily_limit.
+function effectiveDailyLimit(event) {
+  const plan = planFor(event);
+  if (!plan) return event.daily_limit;
+  return Math.min(event.daily_limit || plan.daily, plan.daily);
+}
+
 // ---------------------------------------------------------------------------
 // Generic helpers
 // ---------------------------------------------------------------------------
@@ -264,6 +286,7 @@ function ownerEventShape(env, e) {
 
 // What guests see on the event landing and capture pages.
 function publicEventShape(e) {
+  const plan = PLANS[e.plan] || null;
   return {
     slug: e.slug,
     name: e.name,
@@ -271,7 +294,11 @@ function publicEventShape(e) {
     event_date: e.event_date,
     venue: e.venue,
     theme: e.theme,
-    daily_limit: e.daily_limit,
+    daily_limit: effectiveDailyLimit(e),
+    features: {
+      video: plan ? plan.video : false,
+      badge: plan ? plan.badge : true,
+    },
   };
 }
 
@@ -406,10 +433,13 @@ async function eventsCreate(request, env) {
   const eventTz = (body.event_tz || "America/New_York").toString().slice(0, 64);
   const rolloverH = clampInt(body.rollover_h, 0, 23, 2);
 
+  // With billing on, new events start as private drafts until they are paid for.
+  // Without a Stripe key, they go live immediately (free mode).
+  const status = billingOn(env) ? "draft" : "active";
   await env.DB.prepare(
     `INSERT INTO events (id, organizer_id, slug, name, tagline, event_date, venue, theme, daily_limit, event_tz, rollover_h, status, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'midnight-pearl', ?, ?, ?, 'active', ?)`
-  ).bind(id, org.id, slug, name, tagline, eventDate, venue, dailyLimit, eventTz, rolloverH, now).run();
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'midnight-pearl', ?, ?, ?, ?, ?)`
+  ).bind(id, org.id, slug, name, tagline, eventDate, venue, dailyLimit, eventTz, rolloverH, status, now).run();
 
   const event = await eventById(env, id);
   return json({ ok: true, event: ownerEventShape(env, event) }, 201);
@@ -590,7 +620,7 @@ async function handleQuota(request, env, event) {
     "SELECT COUNT(*) AS count FROM uploads WHERE event_id = ? AND gid = ? AND day = ?"
   ).bind(event.id, gid, day).first();
   const used = row ? row.count : 0;
-  const limit = event.daily_limit;
+  const limit = effectiveDailyLimit(event);
   const headers = {};
   if (setCookie) headers["set-cookie"] = setCookie;
   return json({ used, limit, remaining: Math.max(0, limit - used), event: event.name }, 200, headers);
@@ -599,7 +629,7 @@ async function handleQuota(request, env, event) {
 async function handleUpload(request, env, event) {
   const { gid, setCookie } = await ensureGid(request);
   const day = eventDayKey(event.event_tz, event.rollover_h);
-  const limit = event.daily_limit;
+  const limit = effectiveDailyLimit(event);
 
   const used = (await env.DB.prepare(
     "SELECT COUNT(*) AS count FROM uploads WHERE event_id = ? AND gid = ? AND day = ?"
@@ -611,6 +641,22 @@ async function handleUpload(request, env, event) {
       429,
       setCookie ? { "set-cookie": setCookie } : {}
     );
+  }
+
+  // Per-plan guest cap (distinct devices). Guests who already posted are exempt.
+  const plan = planFor(event);
+  if (plan && plan.guests > 0) {
+    const seen = await env.DB.prepare("SELECT 1 FROM uploads WHERE event_id = ? AND gid = ? LIMIT 1").bind(event.id, gid).first();
+    if (!seen) {
+      const gc = await env.DB.prepare("SELECT COUNT(DISTINCT gid) AS n FROM uploads WHERE event_id = ?").bind(event.id).first();
+      if (gc && gc.n >= plan.guests) {
+        return json(
+          { error: "guests", message: "This event has reached its guest limit." },
+          403,
+          setCookie ? { "set-cookie": setCookie } : {}
+        );
+      }
+    }
   }
 
   let form;
@@ -681,6 +727,129 @@ async function handleMedia(request, env, event, key) {
 }
 
 // ---------------------------------------------------------------------------
+// Billing (Stripe one-time checkout)
+// ---------------------------------------------------------------------------
+
+// Flatten a nested object into Stripe's bracketed form-encoding.
+function stripeForm(obj, prefix, out) {
+  out = out || new URLSearchParams();
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === undefined || v === null) continue;
+    const key = prefix ? `${prefix}[${k}]` : k;
+    if (Array.isArray(v)) v.forEach((item, i) => stripeForm(item, `${key}[${i}]`, out));
+    else if (typeof v === "object") stripeForm(v, key, out);
+    else out.append(key, String(v));
+  }
+  return out;
+}
+
+async function stripeRequest(env, path, params) {
+  const res = await fetch(`https://api.stripe.com/v1/${path}`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${env.STRIPE_SECRET_KEY}`,
+      "content-type": "application/x-www-form-urlencoded",
+    },
+    body: stripeForm(params).toString(),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = (data && data.error && data.error.message) || `stripe ${res.status}`;
+    console.log(`[stripe] ${path} failed: ${msg}`);
+    throw new Error(msg);
+  }
+  return data;
+}
+
+// Verify a Stripe webhook signature (scheme v1: HMAC-SHA256 of "timestamp.payload").
+async function verifyStripeSignature(payload, sigHeader, secret) {
+  if (!sigHeader || !secret) return false;
+  const parts = {};
+  for (const seg of sigHeader.split(",")) {
+    const i = seg.indexOf("=");
+    if (i > 0) parts[seg.slice(0, i).trim()] = seg.slice(i + 1).trim();
+  }
+  const t = parts.t, v1 = parts.v1;
+  if (!t || !v1) return false;
+  if (Math.abs(Date.now() / 1000 - Number(t)) > 300) return false; // replay window
+  const key = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+  );
+  const mac = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${t}.${payload}`));
+  const expected = [...new Uint8Array(mac)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  if (expected.length !== v1.length) return false;
+  let diff = 0;
+  for (let i = 0; i < expected.length; i++) diff |= expected.charCodeAt(i) ^ v1.charCodeAt(i);
+  return diff === 0;
+}
+
+// Start a one-time Checkout Session to publish an event on the chosen plan.
+async function handleCheckout(request, env, url, id) {
+  const org = await getOrganizer(request, env);
+  if (!org) return json({ error: "auth", message: "Sign in required." }, 401);
+  if (!billingOn(env)) return json({ error: "billing_off", message: "Checkout is not available yet." }, 503);
+  const e = await ownedEvent(env, org, id);
+  if (!e) return json({ error: "notfound", message: "Event not found." }, 404);
+  if (e.paid_at) return json({ error: "paid", message: "This event is already published." }, 409);
+
+  let body;
+  try { body = await request.json(); } catch { body = {}; }
+  const planKey = (body.plan || "").toString();
+  const plan = PLANS[planKey];
+  if (!plan) return json({ error: "plan", message: "Pick a valid plan." }, 400);
+
+  const base = baseOf(url, env);
+  try {
+    const session = await stripeRequest(env, "checkout/sessions", {
+      mode: "payment",
+      success_url: `${base}/app?paid=${e.id}#/e/${e.id}`,
+      cancel_url: `${base}/app#/e/${e.id}`,
+      client_reference_id: e.id,
+      customer_email: org.email,
+      metadata: { event_id: e.id, plan: planKey, organizer_id: org.id },
+      payment_intent_data: { metadata: { event_id: e.id, plan: planKey } },
+      line_items: [{
+        quantity: 1,
+        price_data: {
+          currency: "usd",
+          unit_amount: plan.amount,
+          product_data: { name: `kamemories ${plan.label} plan (${e.name})` },
+        },
+      }],
+    });
+    return json({ ok: true, url: session.url });
+  } catch {
+    return json({ error: "stripe", message: "Could not start checkout. Try again." }, 502);
+  }
+}
+
+// Stripe webhook. Verified by signature, then publishes the paid event.
+async function handleStripeWebhook(request, env) {
+  const payload = await request.text();
+  const sig = request.headers.get("stripe-signature");
+  if (!(await verifyStripeSignature(payload, sig, env.STRIPE_WEBHOOK_SECRET))) {
+    return new Response("bad signature", { status: 400 });
+  }
+  let evt;
+  try { evt = JSON.parse(payload); } catch { return new Response("bad payload", { status: 400 }); }
+
+  if (evt.type === "checkout.session.completed") {
+    const s = evt.data && evt.data.object;
+    const meta = (s && s.metadata) || {};
+    const plan = PLANS[meta.plan];
+    if (s && s.payment_status === "paid" && meta.event_id && plan) {
+      const e = await eventById(env, meta.event_id);
+      if (e && !e.paid_at) {
+        await env.DB.prepare(
+          "UPDATE events SET plan = ?, paid_at = ?, status = 'active', daily_limit = ?, stripe_session = ? WHERE id = ?"
+        ).bind(meta.plan, Date.now(), plan.daily, s.id, meta.event_id).run();
+      }
+    }
+  }
+  return json({ received: true });
+}
+
+// ---------------------------------------------------------------------------
 // Static assets
 // ---------------------------------------------------------------------------
 
@@ -707,6 +876,7 @@ export default {
     try {
       // ----- Control plane: kamemories.com -----
       if (plane === "control") {
+        if (path === "/api/stripe/webhook" && method === "POST") return handleStripeWebhook(request, env);
         if (path === "/api/auth/request" && method === "POST") return authRequest(request, env, url);
         if (path === "/auth/verify" && method === "GET") return authVerify(request, env, url);
         if (path === "/api/auth/me" && method === "GET") return authMe(request, env);
@@ -725,6 +895,9 @@ export default {
 
         const evPhotos = path.match(/^\/api\/events\/([^/]+)\/photos$/);
         if (evPhotos && method === "GET") return ownerPhotos(request, env, decodeURIComponent(evPhotos[1]));
+
+        const evCheckout = path.match(/^\/api\/events\/([^/]+)\/checkout$/);
+        if (evCheckout && method === "POST") return handleCheckout(request, env, url, decodeURIComponent(evCheckout[1]));
 
         const pa = path.match(/^\/api\/photos\/([^/]+)\/(approve|feature|delete)$/);
         if (pa && method === "POST") {

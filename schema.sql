@@ -46,8 +46,9 @@ CREATE TABLE IF NOT EXISTS events (
   event_tz     TEXT NOT NULL DEFAULT 'America/New_York',
   rollover_h   INTEGER NOT NULL DEFAULT 2,     -- quota day rolls over at this local hour
   status       TEXT NOT NULL DEFAULT 'active', -- active | draft | archived (billing gates this later)
-  plan         TEXT,                   -- billing tier, set by Stripe later
-  paid_at      INTEGER,                -- epoch ms of the one-time payment, set by Stripe later
+  plan         TEXT,                   -- billing tier (intimate | signature | grand), set on payment
+  paid_at      INTEGER,                -- epoch ms of the one-time payment
+  stripe_session TEXT,                 -- Checkout Session id that paid for this event
   created_at   INTEGER NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_events_slug ON events (slug);

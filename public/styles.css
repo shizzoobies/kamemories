@@ -665,3 +665,18 @@ body.cine { background: transparent; color: var(--cine-ink); overflow-x: hidden;
 .cine-bespoke-title { font-family: var(--font-cormorant); font-weight: 400; font-size: 1.6rem; margin: 0 0 8px; }
 .cine-bespoke-sub { color: var(--cine-dim); margin: 0; max-width: 60ch; line-height: 1.55; font-size: 0.95rem; }
 .cine-bespoke .cine-btn { flex: 0 0 auto; }
+
+/* Dashboard publish (draft -> paid) panel */
+.publish { max-width: 1120px; margin: 0 0 26px; padding: 24px 26px; background: var(--surface); border: 1px solid var(--silver-deep); border-radius: var(--radius); }
+.publish-title { font-weight: 500; font-size: 1.5rem; margin: 0 0 6px; }
+.publish-sub { color: var(--muted); margin: 0 0 20px; line-height: 1.55; max-width: 70ch; }
+.publish-plans { display: grid; grid-template-columns: 1fr; gap: 12px; }
+@media (min-width: 720px) { .publish-plans { grid-template-columns: repeat(3, 1fr); } }
+.publish-plan { text-align: left; display: flex; flex-direction: column; gap: 4px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 16px 18px; cursor: pointer; color: var(--ink); font: inherit; transition: border-color 0.2s ease, transform 0.1s ease; }
+.publish-plan:hover { border-color: var(--silver); }
+.publish-plan:active { transform: scale(0.99); }
+.publish-plan.featured { border-color: var(--silver); }
+.publish-plan .pp-name { font-family: "Playfair Display", serif; font-size: 1.2rem; }
+.publish-plan .pp-price { font-family: "Playfair Display", serif; font-size: 1.6rem; color: var(--silver-bright); }
+.publish-plan .pp-meta { font-size: 0.8rem; color: var(--muted); line-height: 1.4; }
+.publish-plan:disabled { opacity: 0.6; cursor: default; }

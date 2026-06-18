@@ -46,6 +46,27 @@ async function boot() {
   await loadEvents();
   await route();
   window.addEventListener("hashchange", route);
+
+  // Returned from Stripe Checkout: confirm and wait for the webhook to publish.
+  const paid = new URLSearchParams(location.search).get("paid");
+  if (paid) {
+    history.replaceState({}, "", "/app" + location.hash);
+    toast("Payment received. Publishing your event...");
+    pollPublished(paid, 0);
+  }
+}
+
+async function pollPublished(id, tries) {
+  await loadEvents();
+  const e = events.find((x) => x.id === id);
+  if (e && e.status === "active") {
+    toast("Your event is live.");
+    if (current && current.id === id) await openManage(id);
+    else renderEvents();
+    return;
+  }
+  if (tries < 6) setTimeout(() => pollPublished(id, tries + 1), 1500);
+  else toast("Payment received. It may take a moment to publish; refresh shortly.");
 }
 
 function renderWho() {
@@ -156,6 +177,7 @@ function renderManageHead() {
   url.textContent = current.host;
   url.href = current.url;
   $("viewBtn").href = current.url;
+  $("publish").style.display = current.status === "draft" ? "block" : "none";
 }
 
 // ---- Curation: counts, filtering, rendering ----
@@ -396,6 +418,27 @@ function openQr() {
 $("newBtn").addEventListener("click", () => { setMsg("createMsg", "", false); openModal("createModal"); });
 $("backBtn").addEventListener("click", () => { location.hash = ""; });
 $("tabs").addEventListener("click", (e) => { const b = e.target.closest("button[data-tab]"); if (b) setTab(b.dataset.tab); });
+
+$("publish").addEventListener("click", async (e) => {
+  const btn = e.target.closest("button[data-plan]");
+  if (!btn || !current) return;
+  btn.disabled = true;
+  setMsg("publishMsg", "Taking you to secure checkout...", false);
+  try {
+    const r = await fetch("/api/events/" + encodeURIComponent(current.id) + "/checkout", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ plan: btn.dataset.plan }),
+    });
+    const data = await r.json();
+    if (!r.ok || !data.url) { setMsg("publishMsg", data.message || "Could not start checkout.", true); btn.disabled = false; return; }
+    location.href = data.url;
+  } catch {
+    setMsg("publishMsg", "No connection. Try again.", true);
+    btn.disabled = false;
+  }
+});
 
 $("seg").addEventListener("click", (e) => {
   const btn = e.target.closest("button[data-f]");
