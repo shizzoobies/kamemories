@@ -6,6 +6,7 @@ dist/
 .DS_Store
 .omc/
 .claude/
+.playwright-mcp/
 
 # Local photo drop-offs, not part of the app (the hero lives in public/assets)
 Test*.jpg

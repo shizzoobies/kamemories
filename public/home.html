@@ -3,83 +3,98 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="theme-color" content="#0a1626" />
-<title>kamemories . Photo sharing for events</title>
-<meta name="description" content="Put a QR code on the tables. Guests share photos. You curate a beautiful gallery. One price per event." />
+<meta name="theme-color" content="#070d18" />
+<title>kamemories . Cinematic photo sharing for events</title>
+<meta name="description" content="A QR code on the table, every guest's camera in one cinematic gallery. Curate the moments worth framing. One price per event." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&family=Caveat:wght@500;600&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Hanken+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 <link rel="stylesheet" href="/styles.css" />
 </head>
-<body>
-<header class="topbar">
-  <a class="brand" href="/">ka<span>memories</span></a>
-  <nav>
+<body class="cine">
+
+<div class="bg-stage" id="bgStage" aria-hidden="true">
+  <video class="bg-video" id="bgA" muted loop playsinline preload="auto"></video>
+  <video class="bg-video" id="bgB" muted loop playsinline preload="none"></video>
+</div>
+<div class="veil" aria-hidden="true"></div>
+<div class="grain" aria-hidden="true"></div>
+
+<header class="cine-nav">
+  <a class="cine-brand" href="/">kamemories</a>
+  <nav class="cine-links">
     <a href="#how">How it works</a>
     <a href="#pricing">Pricing</a>
-    <a class="pill" href="/login">Sign in</a>
+    <a class="cine-signin" href="/login">Sign in</a>
   </nav>
 </header>
 
-<section class="hero">
-  <p class="hero-eyebrow">Photo sharing for events</p>
-  <h1 class="hero-names display silvered" style="font-size:clamp(2.6rem, 10vw, 5rem)">Every guest's camera, one beautiful wall.</h1>
-  <div class="hero-rule"></div>
-  <p class="event-sub" style="max-width:48ch">Put a QR code on the tables. Guests snap and share in seconds. You approve your favorites into a gallery that looks like it cost a fortune. It did not.</p>
-  <div class="cta-row" style="margin-top:34px">
-    <a class="btn-silver" href="/login">Create your event</a>
-    <a class="btn-outline" href="#how">See how it works</a>
+<section class="cine-hero">
+  <p class="cine-eyebrow reveal" style="--d:0">Photo sharing for events</p>
+  <h1 class="cine-title reveal" style="--d:1">Every guest's lens,<br /><em>one</em> gallery worth keeping.</h1>
+  <p class="cine-sub reveal" style="--d:2">A QR code on the table. Guests share straight from their phones. You curate the moments worth framing into a gallery that feels custom made.</p>
+  <div class="cine-actions reveal" style="--d:3">
+    <a class="cine-btn" href="/login">Create your event</a>
+    <a class="cine-link" href="#how">See how it works</a>
   </div>
+  <div class="cine-scroll reveal" style="--d:4">Scroll</div>
 </section>
 
-<section class="section" id="how">
-  <div class="section-head">
-    <p class="section-eyebrow">How it works</p>
-    <h2 class="section-title display silvered">Three steps, no app to download</h2>
-  </div>
-  <div class="how-grid">
-    <div class="how-card">
-      <div class="how-num display">1</div>
-      <h3>Create your event</h3>
-      <p>Sign in, name your event, and you get your own address at yourname.kamemories.com with a printable QR card.</p>
+<main class="cine-main">
+  <section class="cine-section" id="how">
+    <header class="cine-head">
+      <span class="cine-kicker">How it works</span>
+      <h2 class="cine-h2">Three steps, and not an app in sight.</h2>
+    </header>
+    <div class="cine-steps">
+      <article class="cine-step">
+        <div class="n">01</div>
+        <div>
+          <h3>Create your event</h3>
+          <p>Sign in and name it. You get your own address at <span class="mono">yourname.kamemories.com</span> and a printable QR card to set on the tables.</p>
+        </div>
+      </article>
+      <article class="cine-step">
+        <div class="n">02</div>
+        <div>
+          <h3>Guests share photos</h3>
+          <p>They scan the code and post from their own phones. No accounts, no downloads. Every photo lands privately, waiting for your eye.</p>
+        </div>
+      </article>
+      <article class="cine-step">
+        <div class="n">03</div>
+        <div>
+          <h3>You curate the gallery</h3>
+          <p>Approve the keepers, feature the best on your event's home page, and let the rest go. Nothing is public until you say so.</p>
+        </div>
+      </article>
     </div>
-    <div class="how-card">
-      <div class="how-num display">2</div>
-      <h3>Guests share photos</h3>
-      <p>They scan the code and post photos straight from their phones. No accounts, no app, no fuss.</p>
-    </div>
-    <div class="how-card">
-      <div class="how-num display">3</div>
-      <h3>You curate the gallery</h3>
-      <p>Every photo lands pending. You approve the keepers and feature the best on your event home page.</p>
-    </div>
-  </div>
-</section>
+  </section>
 
-<section class="section" id="pricing" style="padding-top:20px">
-  <div class="section-head">
-    <p class="section-eyebrow">Pricing</p>
-    <h2 class="section-title display silvered">One price, one event</h2>
-    <p class="section-sub">No subscription. Pay once for your event and keep the gallery as your keepsake.</p>
-  </div>
-  <div class="price-card">
-    <p class="price-eyebrow">Per event</p>
-    <p class="price-amount display">Simple, flat pricing</p>
-    <ul class="price-list">
+  <section class="cine-quote">
+    <p>The whole night, seen through every eye that was there.</p>
+  </section>
+
+  <section class="cine-section cine-pricing" id="pricing">
+    <span class="cine-kicker">Pricing</span>
+    <h2 class="cine-price-title">One event. <em>One</em> price.</h2>
+    <p class="cine-price-sub">No subscription. Pay once, and the gallery is yours to keep as a memory.</p>
+    <ul class="cine-includes">
       <li>Your own event address and QR code</li>
-      <li>Unlimited guests sharing photos</li>
+      <li>Unlimited guests, unlimited uploads</li>
       <li>Full curation: approve, feature, remove</li>
       <li>A public gallery and keepsake wall</li>
     </ul>
-    <a class="btn-silver" href="/login" style="margin-top:8px">Get started</a>
-  </div>
-</section>
+    <a class="cine-btn" href="/login">Get started</a>
+  </section>
+</main>
 
-<footer class="landing-foot">
-  <p class="names display">kamemories</p>
-  <p>Photo sharing for weddings, parties, and every celebration.</p>
-  <p><a href="/login">Get started</a></p>
+<footer class="cine-foot">
+  <span class="cine-brand">kamemories</span>
+  <p>Cinematic photo sharing for weddings and every celebration.</p>
 </footer>
+
+<script src="/home.js"></script>
 </body>
 </html>
