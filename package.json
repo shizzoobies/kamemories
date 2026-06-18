@@ -1,13 +1,13 @@
 {
-  "name": "wedding-photos",
+  "name": "kamemories",
   "version": "1.0.0",
   "private": true,
-  "description": "QR photo collection for wedding guests, on Cloudflare Workers + D1 + R2",
+  "description": "Multi-tenant photo collection for events, on Cloudflare Workers + D1 + R2",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "db:init": "wrangler d1 execute wedding-photos --remote --file=./schema.sql",
-    "db:init:local": "wrangler d1 execute wedding-photos --local --file=./schema.sql"
+    "db:init": "wrangler d1 execute kamemories --remote --file=./schema.sql",
+    "db:init:local": "wrangler d1 execute kamemories --local --file=./schema.sql"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"

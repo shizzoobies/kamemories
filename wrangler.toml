@@ -50,7 +50,7 @@ MAIL_FROM = "KA Memories <login@kamemories.com>"
 [[d1_databases]]
 binding = "DB"
 database_name = "kamemories"
-database_id = "REPLACE_WITH_KAMEMORIES_D1_ID"
+database_id = "661beaca-2f57-4a4b-9b04-f53e8bfa4a75"
 
 # R2 bucket for the actual photo files.
 #   npx wrangler r2 bucket create kamemories
