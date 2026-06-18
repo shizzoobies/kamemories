@@ -315,11 +315,14 @@ async function authRequest(request, env, url) {
   ).bind(tokenHash, org.id, now, now + LOGIN_TOKEN_TTL_MS).run();
 
   const link = `${baseOf(url, env)}/auth/verify?token=${raw}`;
+  const isDev = url.hostname === "localhost" || url.hostname.endsWith(".localhost") || url.hostname === "127.0.0.1";
   try {
     const result = await sendMagicLink(env, email, link);
-    const payload = { ok: true };
-    if (result.devLink) payload.devLink = result.devLink; // present only when no email provider is configured
-    return json(payload);
+    if (result.sent) return json({ ok: true });
+    // No email provider configured. Reveal the link only in local dev, never on a
+    // deployed host (otherwise anyone could mint a sign-in link for any email).
+    if (isDev) return json({ ok: true, devLink: result.devLink });
+    return json({ error: "mail_unconfigured", message: "Sign-in email is not set up yet. Try again soon." }, 503);
   } catch {
     return json({ error: "mail", message: "We could not send the email just now. Try again." }, 502);
   }
