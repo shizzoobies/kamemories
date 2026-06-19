@@ -560,7 +560,7 @@ body.cine { background: transparent; color: var(--cine-ink); overflow-x: hidden;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
-/* Event landing cinematic backdrop (Signature and Grand). Reuses the fixed video
+/* Event landing cinematic backdrop (Signature and Grand packages). Reuses the fixed video
    stage from the marketing home, but darker and more uniformly veiled so it reads
    as a subtle motion behind the page rather than a hero reel. event.js adds
    .cinema and the layers when the event's plan includes the video landing. */

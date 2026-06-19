@@ -48,7 +48,7 @@ async function loadEvent() {
   } catch {}
 }
 
-// Cinematic landing backdrop (Signature and Grand). A slow, heavily veiled reel
+// Cinematic landing backdrop (Signature and Grand packages). A slow, heavily veiled reel
 // of wedding footage behind the page that plays each clip through, crossfades to
 // the next, and freezes the moment the visitor scrolls. Kept dependency free and
 // self contained here, mirroring the marketing home's backdrop.
