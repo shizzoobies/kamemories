@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS events (
   daily_limit  INTEGER NOT NULL DEFAULT 10,    -- uploads per guest device per day
   event_tz     TEXT NOT NULL DEFAULT 'America/New_York',
   rollover_h   INTEGER NOT NULL DEFAULT 2,     -- quota day rolls over at this local hour
+  auto_approve INTEGER NOT NULL DEFAULT 0,     -- 1 = guest uploads go straight to the public gallery, no manual approval
   status       TEXT NOT NULL DEFAULT 'active', -- active | draft | archived (billing gates this later)
   plan         TEXT,                   -- billing tier (intimate | signature | grand), set on payment
   paid_at      INTEGER,                -- epoch ms of the one-time payment
@@ -78,3 +79,16 @@ CREATE INDEX IF NOT EXISTS idx_uploads_event_created ON uploads (event_id, creat
 CREATE INDEX IF NOT EXISTS idx_uploads_event_approved ON uploads (event_id, approved, approved_at DESC);
 CREATE INDEX IF NOT EXISTS idx_uploads_event_featured ON uploads (event_id, featured, approved_at DESC);
 CREATE INDEX IF NOT EXISTS idx_uploads_r2key ON uploads (r2_key);
+
+-- Guest likes ("votes") on public photos. One like per anonymous device (gid)
+-- per photo: the composite primary key makes a like idempotent and toggleable.
+-- A public gallery sorts by COUNT(*) of these per upload.
+CREATE TABLE IF NOT EXISTS likes (
+  upload_id  TEXT NOT NULL,          -- joins uploads.id
+  event_id   TEXT NOT NULL,          -- tenant scope, joins events.id
+  gid        TEXT NOT NULL,          -- anonymous guest device token (cookie)
+  created_at INTEGER NOT NULL,       -- epoch ms
+  PRIMARY KEY (upload_id, gid)
+);
+CREATE INDEX IF NOT EXISTS idx_likes_upload ON likes (upload_id);
+CREATE INDEX IF NOT EXISTS idx_likes_event ON likes (event_id);

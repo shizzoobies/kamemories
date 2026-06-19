@@ -32,7 +32,11 @@ kamemories generalizes that idea into a product you can sell access to.
   are currently created `active` with no paywall. Billing is a later pass.
 - Per event, two-tier curation: uploads land pending (approved = 0); approve
   sends a photo to the public gallery; feature also shows it on the event home
-  strip and implies approval. Pending media is private.
+  strip and implies approval. Pending media is private. An event can set
+  `auto_approve` so uploads land approved (public at once, no review); switching
+  it on also publishes any photos still pending.
+- Guests can like (vote for) public photos, one like per anonymous device (gid),
+  toggleable. The public gallery can sort by most liked. Likes live in `likes`.
 - Photos only. Per-guest daily upload cap, server enforced via an anonymous
   device cookie (gid), scoped per event. Quota day rolls over at the event's
   `rollover_h` on its `event_tz`.
@@ -114,8 +118,13 @@ Control plane (kamemories.com), session via the `sid` cookie:
 Event plane ({slug}.kamemories.com), scoped to the resolved event:
 - GET `/api/event` public event info.
 - GET `/api/quota` returns {used, limit, remaining, event}. Sets gid cookie.
-- POST `/api/upload` (multipart) lands approved = 0. Errors 429/400/413/415.
-- GET `/api/public/photos?scope=gallery|featured` approved (or featured) only.
+- POST `/api/upload` (multipart) lands approved = 0, or approved = 1 when the
+  event has `auto_approve`. Errors 429/400/413/415.
+- GET `/api/public/photos?scope=gallery|featured&sort=top|recent` approved (or
+  featured) only; each photo carries a `likes` count and a `liked` flag for the
+  current device.
+- POST `/api/public/photos/:id/like` toggles this device's like on an approved
+  photo of this event. Returns {liked, likes}. Sets the gid cookie.
 - GET `/media/:key` public only for this event's approved photos, else 401.
 
 A missing or non-active event returns 404 for API/media and the event-404 page
@@ -124,9 +133,12 @@ for navigations.
 ## D1 schema
 
 `organizers`, `login_tokens` (token_hash), `sessions` (id_hash), `events`,
-`uploads`. Tokens and session ids are stored as sha-256 hashes, never raw.
-`uploads` is scoped by `event_id`; R2 key format is `{event_id}/{day}/{uuid}.{ext}`
-and the thumbnail is the same with a `.t` before the extension. See `schema.sql`.
+`uploads`, `likes`. Tokens and session ids are stored as sha-256 hashes, never
+raw. `uploads` is scoped by `event_id`; R2 key format is
+`{event_id}/{day}/{uuid}.{ext}` and the thumbnail is the same with a `.t` before
+the extension. `likes` (primary key `upload_id` + `gid`) holds one vote per
+anonymous device per photo. `events.auto_approve` gates instant publishing. See
+`schema.sql`.
 
 ## Worker constants
 

@@ -230,3 +230,22 @@ if (a && b && SOURCES.length) {
   window.addEventListener("scroll", () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } }, { passive: true });
   update();
 })();
+
+// Mobile menu: the burger opens a dropdown with the full nav. It closes on a
+// link tap, an outside tap, or Escape, so it never traps the visitor.
+(function () {
+  const nav = document.querySelector(".cine-nav.has-menu");
+  if (!nav) return;
+  const burger = nav.querySelector(".cine-burger");
+  const links = nav.querySelector(".cine-links");
+  if (!burger || !links) return;
+  const setOpen = (open) => {
+    nav.classList.toggle("menu-open", open);
+    burger.setAttribute("aria-expanded", open ? "true" : "false");
+    burger.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+  };
+  burger.addEventListener("click", (e) => { e.stopPropagation(); setOpen(!nav.classList.contains("menu-open")); });
+  links.addEventListener("click", (e) => { if (e.target.closest("a")) setOpen(false); });
+  document.addEventListener("click", (e) => { if (nav.classList.contains("menu-open") && !nav.contains(e.target)) setOpen(false); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") setOpen(false); });
+})();

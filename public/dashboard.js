@@ -275,6 +275,13 @@ function buildCard(p) {
   badge.className = "cur-badge" + (p.featured ? " featured" : p.approved ? " approved" : "");
   badge.textContent = p.featured ? "Featured" : p.approved ? "Approved" : "Pending";
   ph.appendChild(badge);
+  if (p.likes > 0) {
+    const likes = document.createElement("span");
+    likes.className = "cur-likes";
+    likes.textContent = "♥ " + p.likes;
+    likes.title = p.likes === 1 ? "1 guest loved this" : p.likes + " guests loved this";
+    ph.appendChild(likes);
+  }
   card.appendChild(ph);
 
   if (p.caption) {
@@ -411,6 +418,7 @@ function fillSettings() {
   $("sVenue").value = current.venue || "";
   $("sLimit").value = current.daily_limit || 10;
   $("sStatus").value = current.status || "active";
+  $("sAutoApprove").checked = !!current.auto_approve;
   setMsg("settingsMsg", "", false);
 }
 
@@ -539,6 +547,7 @@ $("settingsForm").addEventListener("submit", async (e) => {
     venue: $("sVenue").value,
     daily_limit: parseInt($("sLimit").value, 10),
     status: $("sStatus").value,
+    auto_approve: $("sAutoApprove").checked ? 1 : 0,
   };
   try {
     const r = await fetch("/api/events/" + encodeURIComponent(current.id), {
@@ -676,7 +685,7 @@ function installDemoBackend() {
       const e = store.events.find((x) => x.id === id);
       if (!e) return ok({ error: "notfound" }, 404);
       if (method === "PATCH") {
-        ["name", "slug", "tagline", "event_date", "venue", "daily_limit", "status"].forEach((k) => { if (body[k] !== undefined) e[k] = body[k]; });
+        ["name", "slug", "tagline", "event_date", "venue", "daily_limit", "status", "auto_approve"].forEach((k) => { if (body[k] !== undefined) e[k] = body[k]; });
         return ok({ event: e });
       }
       if (method === "DELETE") {

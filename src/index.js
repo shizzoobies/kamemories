@@ -339,6 +339,7 @@ function ownerEventShape(env, e) {
     daily_limit: e.daily_limit,
     event_tz: e.event_tz,
     rollover_h: e.rollover_h,
+    auto_approve: e.auto_approve ? 1 : 0,
     status: e.status,
     plan: e.plan || null,
     paid_at: e.paid_at || null,
@@ -361,6 +362,7 @@ function publicEventShape(e) {
     venue: e.venue,
     theme: e.theme,
     daily_limit: effectiveDailyLimit(e),
+    instant: !!e.auto_approve,
     features: {
       video: plan ? plan.video : false,
       badge: plan ? plan.badge : true,
@@ -554,6 +556,7 @@ async function eventUpdate(request, env, id) {
   const dailyLimit = body.daily_limit != null ? clampInt(body.daily_limit, 1, 1000, e.daily_limit) : e.daily_limit;
   const eventTz = body.event_tz != null ? body.event_tz.toString().slice(0, 64) : e.event_tz;
   const rolloverH = body.rollover_h != null ? clampInt(body.rollover_h, 0, 23, e.rollover_h) : e.rollover_h;
+  const autoApprove = body.auto_approve != null ? (body.auto_approve ? 1 : 0) : (e.auto_approve ? 1 : 0);
   const status = body.status != null && ["active", "draft", "archived"].includes(body.status) ? body.status : e.status;
 
   let slug = e.slug;
@@ -566,8 +569,16 @@ async function eventUpdate(request, env, id) {
   }
 
   await env.DB.prepare(
-    `UPDATE events SET name = ?, tagline = ?, event_date = ?, venue = ?, daily_limit = ?, event_tz = ?, rollover_h = ?, status = ?, slug = ? WHERE id = ?`
-  ).bind(name, tagline, eventDate, venue, dailyLimit, eventTz, rolloverH, status, slug, id).run();
+    `UPDATE events SET name = ?, tagline = ?, event_date = ?, venue = ?, daily_limit = ?, event_tz = ?, rollover_h = ?, auto_approve = ?, status = ?, slug = ? WHERE id = ?`
+  ).bind(name, tagline, eventDate, venue, dailyLimit, eventTz, rolloverH, autoApprove, status, slug, id).run();
+
+  // Switching auto-approve on means "everything goes live": publish anything that
+  // was still waiting in the pending queue, too.
+  if (autoApprove && !e.auto_approve) {
+    await env.DB.prepare(
+      "UPDATE uploads SET approved = 1, approved_at = COALESCE(approved_at, ?) WHERE event_id = ? AND approved = 0"
+    ).bind(Date.now(), id).run();
+  }
 
   const updated = await eventById(env, id);
   return json({ ok: true, event: ownerEventShape(env, updated) });
@@ -791,7 +802,8 @@ async function ownerPhotos(request, env, eventId) {
   const e = await ownedEvent(env, org, eventId);
   if (!e) return json({ error: "notfound", message: "Event not found." }, 404);
   const { results } = await env.DB.prepare(
-    `SELECT id, created_at, approved_at, r2_key, thumb_key, kind, content_type, caption, guest_name, approved, featured, day
+    `SELECT id, created_at, approved_at, r2_key, thumb_key, kind, content_type, caption, guest_name, approved, featured, day,
+            (SELECT COUNT(*) FROM likes WHERE upload_id = uploads.id) AS likes
      FROM uploads WHERE event_id = ? ORDER BY created_at DESC LIMIT 5000`
   ).bind(eventId).all();
   return json({ event: ownerEventShape(env, e), photos: results || [] });
@@ -944,10 +956,14 @@ async function handleUpload(request, env, event) {
     await env.BUCKET.put(thumbKey, await thumb.arrayBuffer(), { httpMetadata: { contentType: thumbType } });
   }
 
+  // Events with auto_approve on skip the pending queue: the upload lands already
+  // approved (and stamped), so it shows in the public gallery right away.
+  const approved = event.auto_approve ? 1 : 0;
+  const now = Date.now();
   await env.DB.prepare(
-    `INSERT INTO uploads (id, event_id, gid, day, created_at, r2_key, thumb_key, kind, content_type, size, caption, guest_name)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).bind(id, event.id, gid, day, Date.now(), key, thumbKey, kind, contentType, file.size, caption, guestName).run();
+    `INSERT INTO uploads (id, event_id, gid, day, created_at, r2_key, thumb_key, kind, content_type, size, caption, guest_name, approved, approved_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(id, event.id, gid, day, now, key, thumbKey, kind, contentType, file.size, caption, guestName, approved, approved ? now : null).run();
 
   const remaining = Math.max(0, limit - (used + 1));
   const headers = {};
@@ -958,12 +974,51 @@ async function handleUpload(request, env, event) {
 async function handlePublicPhotos(request, env, event) {
   const url = new URL(request.url);
   const featuredOnly = url.searchParams.get("scope") === "featured";
-  const where = featuredOnly ? "featured = 1" : "approved = 1";
+  const sortTop = url.searchParams.get("sort") === "top";
+  const where = featuredOnly ? "u.featured = 1" : "u.approved = 1";
+  // "Most loved" leads with the like count; ties and "Latest" fall back to time.
+  const orderBy = sortTop
+    ? "likes DESC, COALESCE(u.approved_at, u.created_at) DESC"
+    : "COALESCE(u.approved_at, u.created_at) DESC";
+  // Read (not set) the gid cookie so the list can mark the photos this device
+  // already liked, without minting a cookie on a plain gallery view.
+  const gid = getCookie(request, "gid") || "";
   const { results } = await env.DB.prepare(
-    `SELECT id, created_at, approved_at, r2_key, thumb_key, content_type, caption, guest_name
-     FROM uploads WHERE event_id = ? AND ${where} ORDER BY COALESCE(approved_at, created_at) DESC LIMIT 1000`
-  ).bind(event.id).all();
+    `SELECT u.id, u.created_at, u.approved_at, u.r2_key, u.thumb_key, u.content_type, u.caption, u.guest_name,
+            COUNT(l.gid) AS likes,
+            MAX(CASE WHEN l.gid = ? THEN 1 ELSE 0 END) AS liked
+     FROM uploads u LEFT JOIN likes l ON l.upload_id = u.id
+     WHERE u.event_id = ? AND ${where}
+     GROUP BY u.id
+     ORDER BY ${orderBy} LIMIT 1000`
+  ).bind(gid, event.id).all();
   return json({ photos: results || [] });
+}
+
+// A guest "likes" (votes for) a public photo. One like per anonymous device,
+// toggleable. Only approved photos in this event can be liked.
+async function handleLike(request, env, event, uploadId) {
+  const { gid, setCookie } = await ensureGid(request);
+  const headers = setCookie ? { "set-cookie": setCookie } : {};
+  const u = await env.DB.prepare(
+    "SELECT id FROM uploads WHERE id = ? AND event_id = ? AND approved = 1"
+  ).bind(uploadId, event.id).first();
+  if (!u) return json({ error: "notfound", message: "Photo not found." }, 404, headers);
+  const existing = await env.DB.prepare(
+    "SELECT 1 FROM likes WHERE upload_id = ? AND gid = ?"
+  ).bind(uploadId, gid).first();
+  let liked;
+  if (existing) {
+    await env.DB.prepare("DELETE FROM likes WHERE upload_id = ? AND gid = ?").bind(uploadId, gid).run();
+    liked = false;
+  } else {
+    await env.DB.prepare(
+      "INSERT OR IGNORE INTO likes (upload_id, event_id, gid, created_at) VALUES (?, ?, ?, ?)"
+    ).bind(uploadId, event.id, gid, Date.now()).run();
+    liked = true;
+  }
+  const cnt = await env.DB.prepare("SELECT COUNT(*) AS n FROM likes WHERE upload_id = ?").bind(uploadId).first();
+  return json({ ok: true, liked, likes: cnt ? cnt.n : 0 }, 200, headers);
 }
 
 // Event media is public only for that event's approved photos. Pending photos
@@ -1201,6 +1256,8 @@ export default {
         if (path === "/api/quota" && method === "GET") return handleQuota(request, env, event);
         if (path === "/api/upload" && method === "POST") return handleUpload(request, env, event);
         if (path === "/api/public/photos" && method === "GET") return handlePublicPhotos(request, env, event);
+        const likeM = path.match(/^\/api\/public\/photos\/([^/]+)\/like$/);
+        if (likeM && method === "POST") return handleLike(request, env, event, decodeURIComponent(likeM[1]));
         if (path.startsWith("/media/")) return handleMedia(request, env, event, decodeURIComponent(path.slice("/media/".length)));
         return json({ error: "not_found", message: "Not found." }, 404);
       }

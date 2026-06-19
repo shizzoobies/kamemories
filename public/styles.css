@@ -330,6 +330,43 @@ body {
 .lightbox .lb-actions { display: flex; gap: 12px; margin-top: 16px; }
 .lightbox .lb-close { position: absolute; top: 16px; right: 18px; background: transparent; border: 0; color: var(--ink); font-size: 1.8rem; cursor: pointer; }
 
+/* Sort toggle (Latest / Most loved) */
+.gallery-head { align-items: center; }
+.gallery-head-right { display: inline-flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.gallery-sort { display: inline-flex; gap: 3px; padding: 3px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line-soft); }
+.gallery-sort button { -webkit-appearance: none; appearance: none; border: 0; background: transparent; color: var(--muted); font: 600 0.82rem "Hanken Grotesk", system-ui, sans-serif; padding: 7px 15px; border-radius: 999px; cursor: pointer; white-space: nowrap; transition: color 0.2s ease, background 0.2s ease; }
+.gallery-sort button.on { color: #0a1626; background: var(--silver); }
+.gallery-sort button:not(.on):hover { color: var(--ink); }
+
+/* Guest likes: a heart pill on each photo and in the lightbox. One vote per device. */
+.like-btn {
+  position: absolute; top: 10px; right: 10px; z-index: 2;
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 10px; border-radius: 999px; cursor: pointer;
+  background: rgba(6, 12, 22, 0.6); border: 1px solid rgba(255, 255, 255, 0.18);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  color: #fff; font: 600 0.78rem "Hanken Grotesk", system-ui, sans-serif; line-height: 1;
+  transition: transform 0.14s ease, background 0.2s ease, border-color 0.2s ease;
+}
+.like-btn:hover { background: rgba(6, 12, 22, 0.78); transform: translateY(-1px); }
+.like-btn:active { transform: scale(0.92); }
+.like-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; }
+.like-n:empty { display: none; }
+.like-btn.liked { color: #ff6b88; border-color: rgba(255, 107, 136, 0.6); }
+.like-btn.liked svg { fill: #ff6b88; stroke: #ff6b88; }
+.lb-like {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 11px 18px; border-radius: 999px; cursor: pointer;
+  background: rgba(255, 255, 255, 0.08); border: 1px solid var(--line);
+  color: var(--ink); font: 600 0.92rem "Hanken Grotesk", system-ui, sans-serif; line-height: 1;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.14s ease;
+}
+.lb-like:hover { background: rgba(255, 255, 255, 0.15); }
+.lb-like:active { transform: scale(0.96); }
+.lb-like svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 2; }
+.lb-like.liked { color: #ff6b88; border-color: rgba(255, 107, 136, 0.6); }
+.lb-like.liked svg { fill: #ff6b88; stroke: #ff6b88; }
+
 .key-gate { max-width: 420px; margin: 70px auto; text-align: center; }
 .key-gate input { width: 100%; margin-top: 18px; padding: 14px 16px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; }
 
@@ -349,6 +386,7 @@ body {
 .cur-badge { position: absolute; top: 10px; left: 10px; font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 9px; border-radius: 999px; background: rgba(6,12,22,0.74); color: var(--muted); border: 1px solid var(--line); }
 .cur-badge.approved { color: #0a1626; background: var(--silver); border-color: var(--silver); }
 .cur-badge.featured { color: #0a1626; background: var(--ivory); border-color: var(--ivory); }
+.cur-likes { position: absolute; top: 10px; right: 10px; font-size: 0.72rem; font-weight: 600; padding: 4px 9px; border-radius: 999px; background: rgba(6, 12, 22, 0.74); color: #ff9fb0; border: 1px solid rgba(255, 107, 136, 0.42); }
 .cur-meta { padding: 9px 11px 2px; color: var(--muted); font-size: 0.74rem; display: flex; justify-content: space-between; gap: 8px; }
 .cur-meta .who { color: var(--silver); font-weight: 500; }
 .cur-actions { display: flex; gap: 6px; padding: 9px 9px 11px; }
@@ -463,6 +501,11 @@ body {
 .field > span { font-size: 0.8rem; color: var(--muted); letter-spacing: 0.02em; }
 .field input, .field select { width: 100%; padding: 12px 14px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); font: inherit; }
 .field input::placeholder { color: var(--faint); }
+.setting-toggle { grid-column: 1 / -1; display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-2); cursor: pointer; }
+.setting-toggle .setting-check { width: 20px; height: 20px; margin: 2px 0 0; flex: none; accent-color: var(--silver); cursor: pointer; }
+.setting-copy { display: flex; flex-direction: column; gap: 3px; }
+.setting-copy strong { color: var(--ink); font-size: 0.92rem; font-weight: 600; }
+.setting-copy small { color: var(--muted); font-size: 0.8rem; line-height: 1.45; }
 .slug-row { display: flex; align-items: stretch; }
 .slug-row input { border-top-right-radius: 0; border-bottom-right-radius: 0; }
 .slug-suffix { padding: 12px 12px; border: 1px solid var(--line); border-left: 0; border-top-right-radius: var(--radius-sm); border-bottom-right-radius: var(--radius-sm); background: var(--surface); color: var(--faint); font-size: 0.84rem; white-space: nowrap; display: flex; align-items: center; }
@@ -573,7 +616,28 @@ body.cinema .veil {
 .cine-links a { font-size: 0.74rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--cine-dim); text-decoration: none; transition: color 0.3s; }
 .cine-links a:hover { color: var(--cine-ink); }
 .cine-links .cine-signin { color: var(--cine-ink); }
-@media (max-width: 620px) { .cine-links a:not(.cine-signin) { display: none; } }
+.cine-burger { display: none; width: 44px; height: 44px; align-items: center; justify-content: center; padding: 0; background: transparent; border: 0; color: var(--cine-ink); cursor: pointer; }
+.cine-burger svg { width: 26px; height: 26px; }
+.cine-burger .ic-close { display: none; }
+.cine-nav.menu-open .cine-burger .ic-open { display: none; }
+.cine-nav.menu-open .cine-burger .ic-close { display: block; }
+@media (max-width: 620px) {
+  /* Login-style navs (no menu): show only the single primary link. */
+  .cine-links a:not(.cine-signin) { display: none; }
+  /* Marketing nav: a tap-to-open dropdown holds every link. */
+  .has-menu .cine-burger { display: inline-flex; }
+  .has-menu .cine-links {
+    position: absolute; top: 100%; left: 0; right: 0;
+    flex-direction: column; align-items: stretch; gap: 0;
+    background: rgba(7, 11, 20, 0.98);
+    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--cine-line);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+    padding: 4px 0 8px; display: none;
+  }
+  .has-menu.menu-open .cine-links { display: flex; }
+  .has-menu .cine-links a, .has-menu .cine-links a:not(.cine-signin) { display: block; font-size: 0.82rem; letter-spacing: 0.16em; padding: 15px 26px; border-top: 1px solid rgba(255, 255, 255, 0.07); }
+}
 
 /* Hero: cinematic title-card, content anchored lower-left */
 .cine-hero {

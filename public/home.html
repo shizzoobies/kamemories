@@ -34,9 +34,9 @@
 <div class="veil" aria-hidden="true"></div>
 <div class="grain" aria-hidden="true"></div>
 
-<header class="cine-nav">
+<header class="cine-nav has-menu">
   <a class="cine-brand" href="/" aria-label="KA Memories home"><img class="cine-logo" src="/logo.png" alt="KA Memories" width="605" height="361" /></a>
-  <nav class="cine-links">
+  <nav class="cine-links" id="cineLinks">
     <a href="#how">How it works</a>
     <a href="#pricing">Pricing</a>
     <a href="#faq">FAQ</a>
@@ -44,6 +44,10 @@
     <a class="js-contact-open" href="mailto:memories@ka-performancefl.com">Contact</a>
     <a class="cine-signin" href="/login">Sign in</a>
   </nav>
+  <button class="cine-burger" id="cineBurger" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="cineLinks">
+    <svg class="ic-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="3" y1="6.5" x2="21" y2="6.5"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="17.5" x2="21" y2="17.5"/></svg>
+    <svg class="ic-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="5.5" y1="5.5" x2="18.5" y2="18.5"/><line x1="18.5" y1="5.5" x2="5.5" y2="18.5"/></svg>
+  </button>
 </header>
 
 <section class="cine-hero">
