@@ -30,6 +30,13 @@ kamemories generalizes that idea into a product you can sell access to.
 - Monetization is one-time payment per event, via Stripe. NOT YET BUILT. The
   schema is ready: `events.status`, `events.plan`, `events.paid_at`. New events
   are currently created `active` with no paywall. Billing is a later pass.
+- Vendor referral codes: the operator console mints a code per vendor (a Stripe
+  coupon + promotion code, accepted at checkout). Each carries up to a 50% pool;
+  the vendor picks the customer discount (1 to 50%) and we owe them the rest of
+  the pool, keeping the other 50%. The webhook logs each paid redemption so
+  `/admin` shows commission owed per vendor. Built on the existing Stripe
+  integration (pinned to API version 2024-06-20 so promotion_codes accept a
+  coupon); no new secrets.
 - Per event, two-tier curation: uploads land pending (approved = 0); approve
   sends a photo to the public gallery; feature also shows it on the event home
   strip and implies approval. Pending media is private. An event can set
@@ -134,11 +141,13 @@ for navigations.
 ## D1 schema
 
 `organizers`, `login_tokens` (token_hash), `sessions` (id_hash), `events`,
-`uploads`, `likes`. Tokens and session ids are stored as sha-256 hashes, never
-raw. `uploads` is scoped by `event_id`; R2 key format is
-`{event_id}/{day}/{uuid}.{ext}` and the thumbnail is the same with a `.t` before
-the extension. `likes` (primary key `upload_id` + `gid`) holds one vote per
-anonymous device per photo. `events.auto_approve` gates instant publishing. See
+`uploads`, `likes`, `vendor_codes`, `vendor_redemptions`. Tokens and session ids
+are stored as sha-256 hashes, never raw. `uploads` is scoped by `event_id`; R2
+key format is `{event_id}/{day}/{uuid}.{ext}` and the thumbnail is the same with
+a `.t` before the extension. `likes` (primary key `upload_id` + `gid`) holds one
+vote per anonymous device per photo. `events.auto_approve` gates instant
+publishing. `vendor_codes` are referral discount codes (a Stripe coupon +
+promotion code); `vendor_redemptions` logs each paid use for commission owed. See
 `schema.sql`.
 
 ## Worker constants

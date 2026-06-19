@@ -1057,12 +1057,17 @@ function stripeForm(obj, prefix, out) {
   return out;
 }
 
+// Pin a recent API version so newer params (e.g. promotion_codes' coupon) are
+// accepted regardless of the account's default version.
+const STRIPE_API_VERSION = "2024-06-20";
+
 async function stripeRequest(env, path, params) {
   const res = await fetch(`https://api.stripe.com/v1/${path}`, {
     method: "POST",
     headers: {
       authorization: `Bearer ${env.STRIPE_SECRET_KEY}`,
       "content-type": "application/x-www-form-urlencoded",
+      "Stripe-Version": STRIPE_API_VERSION,
     },
     body: stripeForm(params).toString(),
   });
@@ -1073,6 +1078,23 @@ async function stripeRequest(env, path, params) {
     throw new Error(msg);
   }
   return data;
+}
+
+async function stripeGet(env, path) {
+  const res = await fetch(`https://api.stripe.com/v1/${path}`, {
+    headers: { authorization: `Bearer ${env.STRIPE_SECRET_KEY}`, "Stripe-Version": STRIPE_API_VERSION },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data && data.error && data.error.message) || `stripe ${res.status}`);
+  return data;
+}
+
+async function stripeDelete(env, path) {
+  const res = await fetch(`https://api.stripe.com/v1/${path}`, {
+    method: "DELETE",
+    headers: { authorization: `Bearer ${env.STRIPE_SECRET_KEY}` },
+  });
+  return res.json().catch(() => ({}));
 }
 
 // Verify a Stripe webhook signature (scheme v1: HMAC-SHA256 of "timestamp.payload").
@@ -1160,8 +1182,140 @@ async function handleStripeWebhook(request, env) {
         ).bind(meta.plan, Date.now(), plan.daily, s.id, meta.event_id).run();
       }
     }
+    // If a vendor code was used, log the redemption so we can tally commission owed.
+    if (s && s.payment_status === "paid") {
+      try { await recordVendorRedemption(env, s); } catch (err) { console.log("[vendor] " + (err.message || err)); }
+    }
   }
   return json({ received: true });
+}
+
+// ---------------------------------------------------------------------------
+// Vendor referral codes (operator only)
+// ---------------------------------------------------------------------------
+
+const VENDOR_POOL_PCT = 50; // margin set aside per code: customer discount + vendor commission
+
+async function adminListCodes(request, env) {
+  const gate = await requireAdmin(request, env);
+  if (gate.error) return gate.error;
+  const { results } = await env.DB.prepare(
+    `SELECT vc.id, vc.code, vc.vendor_name, vc.vendor_email, vc.discount_pct, vc.pool_pct, vc.active, vc.created_at,
+            COUNT(vr.id) AS redemptions,
+            COALESCE(SUM(vr.gross_cents), 0) AS gross_cents,
+            COALESCE(SUM(vr.commission_cents), 0) AS commission_cents
+     FROM vendor_codes vc LEFT JOIN vendor_redemptions vr ON vr.code_id = vc.id
+     GROUP BY vc.id ORDER BY vc.created_at DESC`
+  ).all();
+  return json({ codes: results || [], pool: VENDOR_POOL_PCT, billing: billingOn(env) });
+}
+
+async function adminCreateCode(request, env) {
+  const gate = await requireAdmin(request, env);
+  if (gate.error) return gate.error;
+  if (!billingOn(env)) return json({ error: "billing_off", message: "Connect Stripe first to mint codes." }, 503);
+  let body;
+  try { body = await request.json(); } catch { return json({ error: "bad", message: "Bad request." }, 400); }
+
+  const vendorName = (body.vendor_name || "").toString().trim().slice(0, 80);
+  if (!vendorName) return json({ error: "vendor", message: "Name the vendor." }, 400);
+  const vendorEmail = (body.vendor_email || "").toString().trim().toLowerCase().slice(0, 120) || null;
+  if (vendorEmail && !isEmail(vendorEmail)) return json({ error: "email", message: "That vendor email looks off." }, 400);
+
+  const discountPct = clampInt(body.discount_pct, 1, VENDOR_POOL_PCT, 0);
+  if (discountPct < 1) return json({ error: "discount", message: `Pick a customer discount from 1 to ${VENDOR_POOL_PCT} percent.` }, 400);
+
+  let code = (body.code || "").toString().trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!code) code = (vendorName.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12) || "VENDOR") + discountPct;
+  if (code.length < 3 || code.length > 40) return json({ error: "code", message: "Codes are 3 to 40 letters and numbers." }, 400);
+  const taken = await env.DB.prepare("SELECT id FROM vendor_codes WHERE code = ?").bind(code).first();
+  if (taken) return json({ error: "code_taken", message: "That code is already in use." }, 409);
+
+  // A Stripe coupon carries the customer discount; a promotion code is the string
+  // the guest types at checkout. Clean up the coupon if the promo step fails.
+  let coupon = null, promo = null;
+  try {
+    coupon = await stripeRequest(env, "coupons", {
+      percent_off: discountPct,
+      duration: "once",
+      name: `${vendorName} (${discountPct}% off)`,
+      metadata: { vendor: vendorName, pool: VENDOR_POOL_PCT, discount: discountPct },
+    });
+    promo = await stripeRequest(env, "promotion_codes", {
+      coupon: coupon.id,
+      code: code,
+      metadata: { vendor: vendorName, pool: VENDOR_POOL_PCT, discount: discountPct, commission: VENDOR_POOL_PCT - discountPct },
+    });
+  } catch (err) {
+    if (coupon && coupon.id && !promo) { try { await stripeDelete(env, "coupons/" + coupon.id); } catch (e) {} }
+    return json({ error: "stripe", message: "Stripe could not create that code. " + (err.message || "") }, 502);
+  }
+
+  const id = crypto.randomUUID();
+  const now = Date.now();
+  await env.DB.prepare(
+    `INSERT INTO vendor_codes (id, code, vendor_name, vendor_email, discount_pct, pool_pct, stripe_coupon, stripe_promo, active, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`
+  ).bind(id, code, vendorName, vendorEmail, discountPct, VENDOR_POOL_PCT, coupon.id, promo.id, now).run();
+
+  return json({ ok: true, code: {
+    id, code, vendor_name: vendorName, vendor_email: vendorEmail, discount_pct: discountPct, pool_pct: VENDOR_POOL_PCT,
+    active: 1, created_at: now, redemptions: 0, gross_cents: 0, commission_cents: 0,
+  } }, 201);
+}
+
+async function adminUpdateCode(request, env, id) {
+  const gate = await requireAdmin(request, env);
+  if (gate.error) return gate.error;
+  const vc = await env.DB.prepare("SELECT id, stripe_promo FROM vendor_codes WHERE id = ?").bind(id).first();
+  if (!vc) return json({ error: "notfound", message: "Code not found." }, 404);
+  let body;
+  try { body = await request.json(); } catch { body = {}; }
+  const active = body.active ? 1 : 0;
+  // Mirror the on/off state to Stripe so a deactivated code stops working at checkout.
+  if (vc.stripe_promo) {
+    try { await stripeRequest(env, "promotion_codes/" + vc.stripe_promo, { active: active ? "true" : "false" }); } catch (e) {}
+  }
+  await env.DB.prepare("UPDATE vendor_codes SET active = ? WHERE id = ?").bind(active, id).run();
+  return json({ ok: true, id, active });
+}
+
+// From a paid Checkout Session, log a vendor-code redemption (idempotent on the
+// session id) so the console can show commission owed. Only runs when a discount
+// was applied and the promotion code maps to one of our vendor codes.
+async function recordVendorRedemption(env, s) {
+  const discountCents = (s.total_details && s.total_details.amount_discount) || 0;
+  if (discountCents <= 0) return;
+
+  // Pull the applied promotion code id from whichever shape Stripe used: the
+  // session's discounts array, or the total_details breakdown. The breakdown is
+  // not inlined by default, so retrieve the session expanded if needed.
+  const promoFrom = (arr) => {
+    const d = Array.isArray(arr) ? arr[0] : null;
+    if (!d) return null;
+    let p = d.promotion_code != null ? d.promotion_code : (d.discount && d.discount.promotion_code);
+    if (p && typeof p === "object") p = p.id;
+    return p || null;
+  };
+  const breakdown = (x) => x && x.total_details && x.total_details.breakdown && x.total_details.breakdown.discounts;
+  let promoId = promoFrom(s.discounts) || promoFrom(breakdown(s));
+  if (!promoId) {
+    try {
+      const full = await stripeGet(env, "checkout/sessions/" + s.id + "?expand[]=total_details.breakdown.discounts");
+      promoId = promoFrom(full.discounts) || promoFrom(breakdown(full));
+    } catch (e) {}
+  }
+  if (!promoId) return;
+
+  const vc = await env.DB.prepare("SELECT id, pool_pct FROM vendor_codes WHERE stripe_promo = ?").bind(promoId).first();
+  if (!vc) return;
+
+  const gross = s.amount_subtotal != null ? s.amount_subtotal : (s.amount_total || 0) + discountCents;
+  const commission = Math.max(0, Math.round(gross * vc.pool_pct / 100) - discountCents);
+  await env.DB.prepare(
+    `INSERT OR IGNORE INTO vendor_redemptions (id, code_id, event_id, gross_cents, discount_cents, commission_cents, stripe_session, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(crypto.randomUUID(), vc.id, (s.metadata && s.metadata.event_id) || null, gross, discountCents, commission, s.id, Date.now()).run();
 }
 
 // ---------------------------------------------------------------------------
@@ -1236,6 +1390,10 @@ export default {
           if (method === "DELETE") return adminDeleteEvent(request, env, id);
         }
         if (path === "/api/admin/assistant" && method === "POST") return adminAssistant(request, env);
+        if (path === "/api/admin/codes" && method === "GET") return adminListCodes(request, env);
+        if (path === "/api/admin/codes" && method === "POST") return adminCreateCode(request, env);
+        const adminCode = path.match(/^\/api\/admin\/codes\/([^/]+)$/);
+        if (adminCode && method === "PATCH") return adminUpdateCode(request, env, decodeURIComponent(adminCode[1]));
 
         if (method === "GET") {
           if (path === "/") return asset(env, url, request, "/home.html");

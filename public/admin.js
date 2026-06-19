@@ -10,6 +10,8 @@ let data = null;            // { me, clients, events, stats, billing, assistant 
 let eventsFilter = "";
 let currentId = null;       // event open in the detail view
 const chat = [];            // assistant messages [{role, content}]
+let codes = [];             // vendor referral codes
+let POOL = 50;              // margin pool per code (customer discount + vendor commission)
 
 let toastTimer = null;
 function toast(msg, isErr) {
@@ -37,6 +39,7 @@ async function boot() {
   renderWho();
   renderStats();
   renderClients();
+  loadCodes();
   if (data.assistant === false) $("asstNote").textContent = "The assistant is not switched on yet. Add the ANTHROPIC_API_KEY secret and it will appear here.";
   window.addEventListener("hashchange", route);
   route();
@@ -472,5 +475,101 @@ function closeAsst() { $("asstPanel").classList.remove("open"); $("asstFab").sty
 $("asstFab").addEventListener("click", openAsst);
 $("asstClose").addEventListener("click", closeAsst);
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && $("asstPanel").classList.contains("open")) closeAsst(); });
+
+// ---- Vendor referral codes ----
+function money(cents) { return "$" + (Math.round(cents || 0) / 100).toFixed(2); }
+
+async function loadCodes() {
+  try {
+    const r = await fetch("/api/admin/codes", { credentials: "same-origin" });
+    if (!r.ok) return;
+    const d = await r.json();
+    codes = d.codes || [];
+    if (d.pool) POOL = d.pool;
+    renderCodes();
+  } catch (e) {}
+}
+
+function renderCodes() {
+  const list = $("codesList");
+  if (!list) return;
+  list.innerHTML = "";
+  if (!codes.length) { list.innerHTML = '<p class="admin-empty">No vendor codes yet. Create one to start a referral.</p>'; return; }
+  for (const c of codes) {
+    const earn = (c.pool_pct || POOL) - c.discount_pct;
+    const card = document.createElement("div");
+    card.className = "code-card" + (c.active ? "" : " off");
+    card.innerHTML =
+      '<span class="code-tag">' + esc(c.code) + '</span>' +
+      '<div class="code-main"><strong>' + esc(c.vendor_name) + '</strong>' +
+        '<span class="code-split">' + c.discount_pct + '% off &middot; vendor earns ' + earn + '% &middot; you keep ' + (100 - (c.pool_pct || POOL)) + '%</span></div>' +
+      '<div class="code-stats">' + (c.redemptions || 0) + (c.redemptions === 1 ? ' use' : ' uses') + ' &middot; <strong>' + money(c.commission_cents) + '</strong> owed</div>';
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn code-toggle";
+    btn.textContent = c.active ? "Deactivate" : "Activate";
+    btn.addEventListener("click", () => toggleCode(c, btn));
+    card.appendChild(btn);
+    list.appendChild(card);
+  }
+}
+
+async function toggleCode(c, btn) {
+  btn.disabled = true;
+  try {
+    const r = await fetch("/api/admin/codes/" + encodeURIComponent(c.id), {
+      method: "PATCH", credentials: "same-origin",
+      headers: { "content-type": "application/json" }, body: JSON.stringify({ active: c.active ? 0 : 1 }),
+    });
+    const d = await r.json();
+    if (!r.ok) { toast(d.message || "Could not update.", true); return; }
+    c.active = d.active;
+    renderCodes();
+    toast(c.active ? "Code is live." : "Code switched off.");
+  } catch (e) { toast("No connection.", true); }
+  finally { btn.disabled = false; }
+}
+
+function cdSplit() {
+  const d = Math.max(0, Math.min(POOL, parseInt($("cdDiscount").value, 10) || 0));
+  $("cdSplit").textContent = "Customer saves " + d + "%, vendor earns " + (POOL - d) + "%, you keep " + (100 - POOL) + "%.";
+}
+
+$("newCodeBtn").addEventListener("click", () => {
+  $("cdVendor").value = ""; $("cdEmail").value = ""; $("cdDiscount").value = 10; $("cdCode").value = "";
+  setMsg("codeMsg", "", false); cdSplit(); openModal("codeModal");
+  setTimeout(() => $("cdVendor").focus(), 60);
+});
+$("codeClose").addEventListener("click", () => closeModal("codeModal"));
+$("codeModal").addEventListener("click", (e) => { if (e.target.id === "codeModal") closeModal("codeModal"); });
+$("cdDiscount").addEventListener("input", cdSplit);
+
+$("codeForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = $("cdCreate");
+  btn.disabled = true;
+  const body = {
+    vendor_name: $("cdVendor").value.trim(),
+    vendor_email: $("cdEmail").value.trim(),
+    discount_pct: parseInt($("cdDiscount").value, 10),
+    code: $("cdCode").value.trim(),
+  };
+  try {
+    const r = await fetch("/api/admin/codes", {
+      method: "POST", credentials: "same-origin",
+      headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (!r.ok) { setMsg("codeMsg", d.message || "Could not create the code.", true); return; }
+    closeModal("codeModal");
+    codes.unshift(d.code);
+    renderCodes();
+    toast("Code " + d.code.code + " created.");
+  } catch (err) {
+    setMsg("codeMsg", "No connection. Try again.", true);
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 boot();

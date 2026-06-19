@@ -92,3 +92,36 @@ CREATE TABLE IF NOT EXISTS likes (
 );
 CREATE INDEX IF NOT EXISTS idx_likes_upload ON likes (upload_id);
 CREATE INDEX IF NOT EXISTS idx_likes_event ON likes (event_id);
+
+-- Vendor referral discount codes. Each vendor gets a code worth up to a 50% pool;
+-- they choose how much (discount_pct) to pass to the customer as a discount, and
+-- the rest of the pool (pool_pct - discount_pct) is the commission we owe them.
+-- Backed by a Stripe coupon + promotion code so it works at checkout.
+CREATE TABLE IF NOT EXISTS vendor_codes (
+  id             TEXT PRIMARY KEY,
+  code           TEXT NOT NULL,            -- customer-facing code (uppercase)
+  vendor_name    TEXT NOT NULL,
+  vendor_email   TEXT,
+  discount_pct   INTEGER NOT NULL,         -- what the customer gets off (1..pool_pct)
+  pool_pct       INTEGER NOT NULL DEFAULT 50, -- total we give up; commission = pool - discount
+  stripe_coupon  TEXT,
+  stripe_promo   TEXT,
+  active         INTEGER NOT NULL DEFAULT 1,
+  created_at     INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_vendor_codes_code ON vendor_codes (code);
+CREATE INDEX IF NOT EXISTS idx_vendor_codes_promo ON vendor_codes (stripe_promo);
+
+-- One row per paid checkout that used a vendor code, for tallying commission owed.
+CREATE TABLE IF NOT EXISTS vendor_redemptions (
+  id               TEXT PRIMARY KEY,
+  code_id          TEXT NOT NULL,          -- joins vendor_codes.id
+  event_id         TEXT,
+  gross_cents      INTEGER NOT NULL,       -- full price before the discount
+  discount_cents   INTEGER NOT NULL,       -- what the customer saved
+  commission_cents INTEGER NOT NULL,       -- what we owe the vendor
+  stripe_session   TEXT,
+  created_at       INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_vendor_redemptions_code ON vendor_redemptions (code_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_vendor_redemptions_session ON vendor_redemptions (stripe_session);

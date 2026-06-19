@@ -807,6 +807,16 @@ body.cinema .veil {
 .admin-client { background: var(--surface); border: 1px solid var(--line-soft); border-radius: var(--radius); padding: 12px 14px; }
 .admin-client-email { color: var(--ink); font-weight: 600; font-size: 0.9rem; word-break: break-word; }
 .admin-client-meta { color: var(--muted); font-size: 0.78rem; margin-top: 4px; }
+.code-card { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; background: var(--surface); border: 1px solid var(--line-soft); border-radius: var(--radius); padding: 13px 16px; }
+.code-card.off { opacity: 0.55; }
+.code-tag { font-weight: 700; letter-spacing: 0.06em; color: #0a1626; background: var(--silver); border-radius: 7px; padding: 4px 10px; font-size: 0.84rem; }
+.code-main { display: flex; flex-direction: column; gap: 2px; min-width: 150px; }
+.code-main strong { color: var(--ink); font-size: 0.96rem; }
+.code-split { color: var(--muted); font-size: 0.8rem; }
+.code-stats { color: var(--muted); font-size: 0.82rem; margin-left: auto; white-space: nowrap; }
+.code-stats strong { color: var(--silver); }
+.code-toggle { padding: 7px 13px; font-size: 0.82rem; }
+.cd-split { color: var(--silver); font-size: 0.86rem; margin: 2px 0 0; }
 .newbk { margin-bottom: 30px; }
 .newbk .admin-colhead { margin-bottom: 6px; }
 .newbk .admin-sub { margin-bottom: 12px; }

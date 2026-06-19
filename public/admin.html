@@ -43,6 +43,10 @@
   <input id="eventsSearch" class="cur-input admin-search" type="search" placeholder="Search by event, address, or client" aria-label="Search events" />
   <div id="eventsList" class="admin-list"></div>
 
+  <div class="admin-colhead admin-colhead-sp"><h2 class="admin-h">Vendor codes</h2><button class="btn" id="newCodeBtn" type="button">New code</button></div>
+  <p class="admin-sub">Give a vendor a referral code. They pick the customer discount (up to 50%); you owe them the rest of the 50% and keep the other half. Used at checkout.</p>
+  <div id="codesList" class="admin-list"></div>
+
   <div class="admin-colhead admin-colhead-sp"><h2 class="admin-h">Clients</h2><span class="admin-count" id="clientsCount"></span></div>
   <div id="clientsList" class="admin-clients"></div>
 </section>
@@ -171,6 +175,26 @@
         <button type="button" class="btn primary" id="wizNext">Next</button>
         <button type="submit" class="btn primary" id="wizCreate" style="display:none">Create event</button>
       </div>
+    </form>
+  </div>
+</div>
+
+<!-- New vendor code -->
+<div class="modal" id="codeModal">
+  <div class="modal-card">
+    <button class="lb-close" id="codeClose" aria-label="Close">&times;</button>
+    <h2 class="display" style="margin:0 0 4px">New vendor code</h2>
+    <p class="auth-sub">They pass part of a 50% pool to the customer as a discount. You owe them the difference and keep the other 50%.</p>
+    <form id="codeForm">
+      <div class="form-grid">
+        <label class="field"><span>Vendor name</span><input id="cdVendor" type="text" maxlength="80" placeholder="Sunset Photography" /></label>
+        <label class="field"><span>Vendor email (optional)</span><input id="cdEmail" type="email" maxlength="120" placeholder="hello@vendor.com" autocomplete="off" /></label>
+        <label class="field"><span>Customer discount %</span><input id="cdDiscount" type="number" min="1" max="50" value="10" /></label>
+        <label class="field"><span>Code (optional)</span><input id="cdCode" type="text" maxlength="40" placeholder="auto from vendor name" /></label>
+      </div>
+      <p class="cd-split" id="cdSplit"></p>
+      <p id="codeMsg" class="auth-msg"></p>
+      <div class="row"><button class="btn primary" id="cdCreate" type="submit">Create code</button></div>
     </form>
   </div>
 </div>
