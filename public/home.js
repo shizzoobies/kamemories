@@ -120,19 +120,34 @@ if (a && b && SOURCES.length) {
 
   const fill = document.getElementById("stepsFill");
   const wrap = document.getElementById("howSteps");
-  if (fill && wrap) {
-    let pending = false;
+  if (wrap) {
     const draw = () => {
-      pending = false;
       const r = wrap.getBoundingClientRect();
       const vh = window.innerHeight || document.documentElement.clientHeight;
-      const start = vh * 0.78, end = vh * 0.4;
-      const span = r.height + (start - end);
-      let p = (start - r.top) / span;
-      p = Math.max(0, Math.min(1, p));
-      fill.style.height = (p * 100).toFixed(1) + "%";
+      if (fill) {
+        const start = vh * 0.78, end = vh * 0.4;
+        const span = r.height + (start - end);
+        let p = (start - r.top) / span;
+        p = Math.max(0, Math.min(1, p));
+        fill.style.height = (p * 100).toFixed(1) + "%";
+      }
+      // Light the step nearest the viewport's vertical center, and clear all when
+      // the section is essentially off screen, so exactly one glow follows the
+      // reader and hands off cleanly from one step to the next.
+      const inView = r.bottom > vh * 0.15 && r.top < vh * 0.85;
+      if (!inView) { steps.forEach((s) => s.classList.remove("is-active")); return; }
+      const focus = vh * 0.5;
+      let best = null, bestDist = Infinity;
+      for (const s of steps) {
+        const br = (s.querySelector(".cine-step-body") || s).getBoundingClientRect();
+        const center = br.top + br.height / 2;
+        const dist = Math.abs(center - focus);
+        if (dist < bestDist) { bestDist = dist; best = s; }
+      }
+      steps.forEach((s) => s.classList.toggle("is-active", s === best));
     };
-    window.addEventListener("scroll", () => { if (!pending) { pending = true; requestAnimationFrame(draw); } }, { passive: true });
+    let pending = false;
+    window.addEventListener("scroll", () => { if (!pending) { pending = true; requestAnimationFrame(() => { pending = false; draw(); }); } }, { passive: true });
     window.addEventListener("resize", draw, { passive: true });
     draw();
   }
