@@ -100,3 +100,40 @@ if (a && b && SOURCES.length) {
     });
   }, { passive: true });
 }
+
+// How-it-works: reveal each step as it enters view, light its marker, and draw
+// the connecting line as the section scrolls past.
+(function () {
+  const steps = Array.from(document.querySelectorAll(".cine-step"));
+  if (!steps.length) return;
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    steps.forEach((s) => s.classList.add("in"));
+    return;
+  }
+
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
+    });
+  }, { threshold: 0.4, rootMargin: "0px 0px -12% 0px" });
+  steps.forEach((s) => io.observe(s));
+
+  const fill = document.getElementById("stepsFill");
+  const wrap = document.getElementById("howSteps");
+  if (fill && wrap) {
+    let pending = false;
+    const draw = () => {
+      pending = false;
+      const r = wrap.getBoundingClientRect();
+      const vh = window.innerHeight || document.documentElement.clientHeight;
+      const start = vh * 0.78, end = vh * 0.4;
+      const span = r.height + (start - end);
+      let p = (start - r.top) / span;
+      p = Math.max(0, Math.min(1, p));
+      fill.style.height = (p * 100).toFixed(1) + "%";
+    };
+    window.addEventListener("scroll", () => { if (!pending) { pending = true; requestAnimationFrame(draw); } }, { passive: true });
+    window.addEventListener("resize", draw, { passive: true });
+    draw();
+  }
+})();
