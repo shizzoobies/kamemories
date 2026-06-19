@@ -89,21 +89,29 @@
   if (onDashboard) { restoreColors(); return; }
 
   // ---- Bar (event, gallery, capture pages) ----
-  let one, two, basePrev, accPrev;
+  let one, two, basePick, accPick;
   let last1 = DEF1, last2 = DEF2;
 
   function setColors(c1, c2, isReset, syncInputs) {
     last1 = c1; last2 = c2;
     if (isReset) clearColors(); else applyColors(c1, c2);
-    if (syncInputs && one && two) { one.value = c1; two.value = c2; }
-    if (basePrev) basePrev.style.background = c1;
-    if (accPrev) accPrev.style.background = c2;
+    if (syncInputs) {
+      if (one) one.value = c1;
+      if (two) two.value = c2;
+      if (basePick) basePick.value = expand(c1);
+      if (accPick) accPick.value = expand(c2);
+    }
     try { localStorage.setItem(STORE, JSON.stringify({ c1: c1, c2: c2, reset: !!isReset })); } catch (e) {}
   }
   function normHex(v) {
     v = (v || "").trim();
     if (v && v[0] !== "#") v = "#" + v;
     return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v) ? v : null;
+  }
+  // The native color input needs a full six digit hex.
+  function expand(hex) {
+    const v = normHex(hex) || DEF1;
+    return v.length === 4 ? ("#" + v[1] + v[1] + v[2] + v[2] + v[3] + v[3]) : v;
   }
 
   // c1 = base, c2 = accent. The first is the default Midnight Pearl.
@@ -161,30 +169,29 @@
     chips.appendChild(b);
   });
 
-  // Hex code entry, with a live preview dot. No native picker (a typed hex is all
-  // most people have from their invitations or palette).
-  function hexField(titleText) {
+  // Each color offers both: a swatch that opens the full system color picker, and
+  // a hex code you can type or paste. They stay in sync, and either updates the
+  // live theme.
+  function colorField(titleText) {
     const wrap = document.createElement("span");
     wrap.style.cssText = "display:inline-flex;align-items:center;gap:6px";
-    const prev = document.createElement("span");
-    prev.setAttribute("aria-hidden", "true");
-    Object.assign(prev.style, { width: "20px", height: "20px", borderRadius: "50%", border: "1px solid rgba(255,255,255,0.35)", flex: "0 0 auto" });
-    const inp = field("84px", titleText, "#000000");
+    const pick = document.createElement("input");
+    pick.type = "color";
+    pick.title = titleText + ": click to pick";
+    pick.setAttribute("aria-label", titleText + ", color picker");
+    Object.assign(pick.style, { width: "30px", height: "30px", padding: "0", border: "1px solid rgba(255,255,255,0.35)", borderRadius: "50%", background: "none", cursor: "pointer", appearance: "none", webkitAppearance: "none", flex: "0 0 auto" });
+    const inp = field("84px", titleText + " hex code", "#000000");
     inp.maxLength = 7; inp.style.letterSpacing = "0.03em";
-    wrap.append(prev, inp);
-    return { wrap: wrap, input: inp, prev: prev };
+    wrap.append(pick, inp);
+    return { wrap: wrap, pick: pick, input: inp };
   }
-  const baseF = hexField("Your base color, as a hex code");
-  const accF = hexField("Your accent color, as a hex code");
-  one = baseF.input; two = accF.input; basePrev = baseF.prev; accPrev = accF.prev;
-  function onHex() {
-    const v1 = normHex(one.value), v2 = normHex(two.value);
-    if (v1) basePrev.style.background = v1;
-    if (v2) accPrev.style.background = v2;
-    setColors(v1 || last1, v2 || last2, false, false);
-  }
-  one.addEventListener("input", onHex);
-  two.addEventListener("input", onHex);
+  const baseF = colorField("Your base color");
+  const accF = colorField("Your accent color");
+  one = baseF.input; two = accF.input; basePick = baseF.pick; accPick = accF.pick;
+  basePick.addEventListener("input", () => { one.value = basePick.value; setColors(basePick.value, last2, false, false); });
+  accPick.addEventListener("input", () => { two.value = accPick.value; setColors(last1, accPick.value, false, false); });
+  one.addEventListener("input", () => { const v = normHex(one.value); if (v) basePick.value = expand(v); setColors(v || last1, last2, false, false); });
+  two.addEventListener("input", () => { const v = normHex(two.value); if (v) accPick.value = expand(v); setColors(last1, v || last2, false, false); });
 
   const reset = document.createElement("button");
   reset.type = "button"; reset.textContent = "Reset";
@@ -206,7 +213,7 @@
     // Restore previous color choice (e.g. navigating landing -> gallery).
     const st = savedTheme();
     if (st && st.c1 && st.c2) setColors(st.c1, st.c2, !!st.reset, true);
-    else { one.value = DEF1; two.value = DEF2; basePrev.style.background = DEF1; accPrev.style.background = DEF2; }
+    else { one.value = DEF1; two.value = DEF2; basePick.value = expand(DEF1); accPick.value = expand(DEF2); }
     // Restore previous name and keep it applied over the API fill.
     const sn = savedName();
     if (sn) nameInput.value = sn;
