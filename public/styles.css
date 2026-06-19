@@ -816,6 +816,19 @@ body.cinema .veil {
 .cine-form-msg.err { color: #e6a39b; }
 .cine-form-done { text-align: center; padding: 16px 0; }
 .cine-hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+
+/* FAQ accordion (marketing home) */
+.cine-faq { text-align: center; }
+.cine-faq-list { text-align: left; max-width: 760px; margin: clamp(36px, 6vh, 60px) auto 0; }
+.cine-faq-item { border-top: 1px solid var(--cine-line); }
+.cine-faq-item:last-child { border-bottom: 1px solid var(--cine-line); }
+.cine-faq-q { cursor: pointer; list-style: none; position: relative; padding: 22px 46px 22px 0; font-family: var(--font-cormorant); font-weight: 500; font-size: clamp(1.15rem, 2.2vw, 1.45rem); color: var(--cine-ink); }
+.cine-faq-q::-webkit-details-marker { display: none; }
+.cine-faq-q::after { content: "+"; position: absolute; right: 4px; top: 50%; transform: translateY(-50%); font-size: 1.6rem; line-height: 1; color: var(--cine-dim); transition: transform 0.3s ease, color 0.3s ease; }
+.cine-faq-item[open] .cine-faq-q { color: #fff; }
+.cine-faq-item[open] .cine-faq-q::after { transform: translateY(-50%) rotate(45deg); color: var(--cine-ink); }
+.cine-faq-a { padding: 0 46px 24px 0; }
+.cine-faq-a p { margin: 0; color: var(--cine-dim); line-height: 1.7; font-size: 1.02rem; max-width: 64ch; }
 .cine-dev { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--cine-line); }
 .cine-dev a { color: var(--cine-dim); word-break: break-all; font-size: 0.82rem; }
 
