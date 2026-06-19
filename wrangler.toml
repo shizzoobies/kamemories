@@ -37,10 +37,9 @@ zone_name = "kamemories.com"
 ROOT_HOST = "kamemories.com"
 # Subdomain labels that are never treated as event slugs (comma separated).
 RESERVED_SUBDOMAINS = "www,app,api,mail,static,assets,cdn,admin,pics,help,support,blog,status,dev"
-# From address for magic-link login email. Must be on a domain verified in
-# Resend. ka-testing.com is verified today; switch to login@kamemories.com once
-# that domain is verified at https://resend.com/domains for full branding.
-MAIL_FROM = "KA Memories <login@ka-testing.com>"
+# From address for transactional email (magic-link login and the contact form).
+# Must be on a domain verified in the Resend account; kamemories.com is verified.
+MAIL_FROM = "KA Memories <memories@kamemories.com>"
 # Inbox the public contact form delivers to.
 CONTACT_TO = "memories@ka-performancefl.com"
 # Secrets (set with `npx wrangler secret put NAME`; values never live in this file,
