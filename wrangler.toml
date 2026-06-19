@@ -41,12 +41,18 @@ RESERVED_SUBDOMAINS = "www,app,api,mail,static,assets,cdn,admin,pics,help,suppor
 # Resend. ka-testing.com is verified today; switch to login@kamemories.com once
 # that domain is verified at https://resend.com/domains for full branding.
 MAIL_FROM = "KA Memories <login@ka-testing.com>"
-# Secrets (set with `npx wrangler secret put NAME`):
+# Secrets (set with `npx wrangler secret put NAME`; values never live in this file,
+# and a deploy never clears them):
 #   RESEND_API_KEY        transactional email. Without it, login runs in dev mode
 #                         and returns the magic link in the API response instead of
 #                         sending it. Never run production without this set.
-#   STRIPE_SECRET_KEY     billing, added in a later pass.
-#   STRIPE_WEBHOOK_SECRET billing, added in a later pass.
+#   STRIPE_SECRET_KEY     billing. When set, new events are paid drafts until checkout
+#                         completes. Currently a test-mode key.
+#   STRIPE_WEBHOOK_SECRET verifies the Stripe webhook that publishes a paid event.
+#   ADMIN_EMAILS          comma separated operator emails. They alone reach /admin and
+#                         the /api/admin endpoints.
+#   ANTHROPIC_API_KEY     powers the operator console assistant (Claude Opus). Absent
+#                         = the assistant returns a friendly "not set up yet".
 
 # D1 database. Create it once, then paste the printed id below.
 #   npx wrangler d1 create kamemories
