@@ -90,7 +90,6 @@ function showList() {
   currentId = null;
   $("eventDetail").style.display = "none";
   $("console").style.display = "block";
-  $("assistantSection").style.display = "block";
   renderEvents();
   window.scrollTo(0, 0);
 }
@@ -149,7 +148,6 @@ function openEvent(id) {
   if (!e) { location.hash = ""; return; }
   currentId = id;
   $("console").style.display = "none";
-  $("assistantSection").style.display = "none";
   $("eventDetail").style.display = "block";
   fillDetail(e);
   window.scrollTo(0, 0);
@@ -332,5 +330,12 @@ $("asstForm").addEventListener("submit", async (e) => {
     input.focus();
   }
 });
+
+// Floating assistant: collapsed to a bubble until opened.
+function openAsst() { $("asstPanel").classList.add("open"); $("asstFab").style.display = "none"; $("asstInput").focus(); }
+function closeAsst() { $("asstPanel").classList.remove("open"); $("asstFab").style.display = "flex"; }
+$("asstFab").addEventListener("click", openAsst);
+$("asstClose").addEventListener("click", closeAsst);
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && $("asstPanel").classList.contains("open")) closeAsst(); });
 
 boot();

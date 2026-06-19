@@ -92,16 +92,22 @@
   </form>
 </section>
 
-<!-- ASSISTANT (list view) -->
-<section class="section dash" id="assistantSection" style="display:none">
-  <div class="admin-colhead"><h2 class="admin-h">Assistant</h2><span class="admin-tag">Opus</span></div>
-  <p class="admin-sub" id="asstNote">Ask about your clients, draft a note, or plan a launch. It reads your live data and never changes anything.</p>
+<!-- ASSISTANT: floating chat bubble -->
+<button class="asst-fab" id="asstFab" type="button" aria-label="Open the assistant">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.5 8.5 0 0 1-12.4 7.6L3 21l1.9-5.6A8.5 8.5 0 1 1 21 11.5z"/></svg>
+</button>
+<div class="asst-panel" id="asstPanel" role="dialog" aria-label="Operator assistant">
+  <div class="asst-head">
+    <span class="asst-title">Assistant <span class="admin-tag">Opus</span></span>
+    <button class="asst-close" id="asstClose" type="button" aria-label="Close assistant">&times;</button>
+  </div>
   <div class="asst-log" id="asstLog"></div>
   <form class="asst-form" id="asstForm">
-    <input id="asstInput" class="cur-input" type="text" placeholder="Which events still have photos pending?" autocomplete="off" />
+    <input id="asstInput" class="cur-input" type="text" placeholder="Ask about your clients..." autocomplete="off" />
     <button class="btn primary" id="asstSend" type="submit">Ask</button>
   </form>
-</section>
+  <p class="asst-note" id="asstNote">Reads your live data and changes nothing.</p>
+</div>
 
 <!-- New client event -->
 <div class="modal" id="createModal">
