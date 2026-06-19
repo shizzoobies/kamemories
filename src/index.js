@@ -388,7 +388,7 @@ async function authVerify(request, env, url) {
 async function authMe(request, env) {
   const org = await getOrganizer(request, env);
   if (!org) return json({ error: "auth" }, 401);
-  return json({ organizer: { email: org.email, name: org.name || null } });
+  return json({ organizer: { email: org.email, name: org.name || null }, admin: isAdmin(org, env) });
 }
 
 async function authLogout(request, env) {

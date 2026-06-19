@@ -12,6 +12,7 @@ const IS_DEMO = (location.hostname.split(".")[0] || "").toLowerCase() === "demo"
 const MEDIA_BASE = IS_DEMO ? "/media/" : "/owner-media/";
 
 let me = null;
+let amOperator = false;
 let events = [];
 let current = null; // the event being managed (owner shape)
 let photos = [];
@@ -49,6 +50,7 @@ async function boot() {
   if (!r.ok) { location.href = "/login"; return; }
   const data = await r.json();
   me = data.organizer;
+  amOperator = !!data.admin;
   renderWho();
   await loadEvents();
   await route();
@@ -90,6 +92,13 @@ function renderWho() {
     exit.textContent = "Exit demo";
     who.appendChild(exit);
     return;
+  }
+  if (amOperator) {
+    const op = document.createElement("a");
+    op.href = "/admin";
+    op.className = "who-out";
+    op.textContent = "Operator console";
+    who.appendChild(op);
   }
   const out = document.createElement("a");
   out.href = "#";
