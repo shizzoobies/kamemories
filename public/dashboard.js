@@ -4,6 +4,13 @@
 
 const $ = (id) => document.getElementById(id);
 
+// On the demo subdomain the dashboard has no session and saves nothing: its API
+// calls are intercepted and served from an in-memory sandbox (installDemoBackend),
+// and owner media is read from the public /media path. Off the demo it is the
+// real, session-authed console.
+const IS_DEMO = (location.hostname.split(".")[0] || "").toLowerCase() === "demo";
+const MEDIA_BASE = IS_DEMO ? "/media/" : "/owner-media/";
+
 let me = null;
 let events = [];
 let current = null; // the event being managed (owner shape)
@@ -12,8 +19,8 @@ let filter = "all";
 let sortOrder = "new";
 let search = "";
 
-function mediaUrl(p) { return "/owner-media/" + encodeURIComponent(p.thumb_key || p.r2_key); }
-function fullUrl(p) { return "/owner-media/" + encodeURIComponent(p.r2_key); }
+function mediaUrl(p) { return MEDIA_BASE + encodeURIComponent(p.thumb_key || p.r2_key); }
+function fullUrl(p) { return MEDIA_BASE + encodeURIComponent(p.r2_key); }
 
 function fmtTime(ms) {
   const d = new Date(ms);
@@ -75,6 +82,15 @@ function renderWho() {
   const span = document.createElement("span");
   span.className = "who-email";
   span.textContent = me.email;
+  who.appendChild(span);
+  if (IS_DEMO) {
+    const exit = document.createElement("a");
+    exit.href = "https://kamemories.com";
+    exit.className = "who-out";
+    exit.textContent = "Exit demo";
+    who.appendChild(exit);
+    return;
+  }
   const out = document.createElement("a");
   out.href = "#";
   out.className = "who-out";
@@ -84,7 +100,6 @@ function renderWho() {
     await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" });
     location.href = "/login";
   });
-  who.appendChild(span);
   who.appendChild(out);
 }
 
@@ -545,4 +560,160 @@ $("deleteEventBtn").addEventListener("click", async () => {
   location.hash = "";
 });
 
+// ---- Demo sandbox backend ----
+// On demo.kamemories.com the dashboard has no session and no write access, so we
+// intercept its own API calls and serve an in-memory dataset built from the demo
+// event's real public photos (with a believable pending/approved/featured mix).
+// Reads return canned data; writes mutate the in-memory store only, so the whole
+// console is explorable and resets on refresh.
+function installDemoBackend() {
+  const realFetch = window.fetch.bind(window);
+  const HOST = location.host;
+  const ORG = { email: "ava@example.com", name: "Ava" };
+  const MAIN_ID = "demo-ava-noah";
+  let store = null;
+  let ready = null;
+
+  function eventShape(over) {
+    return Object.assign({
+      id: MAIN_ID, slug: "demo", name: "Ava & Noah",
+      tagline: "Together with their families", event_date: "September 14, 2025",
+      venue: "Sonoma, California", theme: "midnight", daily_limit: 10,
+      event_tz: "America/Los_Angeles", rollover_h: 4, status: "active",
+      plan: "grand", paid_at: 1, created_at: 1,
+      host: HOST, url: "https://" + HOST, capture_url: "https://" + HOST + "/add",
+    }, over || {});
+  }
+
+  async function build() {
+    let ev = null, gallery = [], featured = [];
+    try { ev = (await realFetch("/api/event").then((r) => r.json())).event; } catch (e) {}
+    try { gallery = (await realFetch("/api/public/photos?scope=gallery").then((r) => r.json())).photos || []; } catch (e) {}
+    try { featured = (await realFetch("/api/public/photos?scope=featured").then((r) => r.json())).photos || []; } catch (e) {}
+    const feat = new Set(featured.map((p) => p.id));
+    let pendingLeft = 7; // relabel a few approved photos as pending to show the review flow
+    const photos = gallery.map((p) => {
+      const isFeat = feat.has(p.id);
+      let approved = 1, featuredFlag = isFeat ? 1 : 0;
+      if (!isFeat && pendingLeft > 0) { approved = 0; pendingLeft--; }
+      return {
+        id: p.id, created_at: p.created_at, approved_at: p.approved_at || p.created_at,
+        r2_key: p.r2_key, thumb_key: p.thumb_key, kind: "photo",
+        content_type: p.content_type || "image/jpeg",
+        caption: p.caption || "", guest_name: p.guest_name || "",
+        approved: approved, featured: featuredFlag, day: 0,
+      };
+    });
+    const main = eventShape({
+      name: (ev && ev.name) || "Ava & Noah",
+      tagline: (ev && ev.tagline) || "Together with their families",
+      event_date: (ev && ev.event_date) || "September 14, 2025",
+      venue: (ev && ev.venue) || "Sonoma, California",
+    });
+    store = { events: [main], photos: {} };
+    store.photos[MAIN_ID] = photos;
+  }
+
+  function ensure() { if (!ready) ready = build(); return ready; }
+
+  const ok = (obj, status) => new Response(JSON.stringify(obj), { status: status || 200, headers: { "content-type": "application/json" } });
+  const parse = (b) => { try { return JSON.parse(b); } catch (e) { return {}; } };
+
+  function listEvents() {
+    return store.events.map((e) => {
+      const ps = store.photos[e.id] || [];
+      let pending = 0, approved = 0;
+      for (const p of ps) { if (p.approved) approved++; else pending++; }
+      return Object.assign({}, e, { total: ps.length, pending: pending, approved: approved });
+    });
+  }
+  function findPhoto(id) {
+    for (const eid in store.photos) {
+      const p = store.photos[eid].find((x) => x.id === id);
+      if (p) return { p: p, list: store.photos[eid] };
+    }
+    return null;
+  }
+
+  async function handle(url, method, init) {
+    await ensure();
+    const path = new URL(url, location.origin).pathname;
+    const body = init && init.body ? parse(init.body) : {};
+    let m;
+
+    if (path === "/api/auth/me") return ok({ organizer: ORG });
+    if (path === "/api/auth/logout") return ok({ ok: true });
+    if (path === "/api/events" && method === "GET") return ok({ events: listEvents() });
+    if (path === "/api/events" && method === "POST") {
+      const id = "demo-" + Math.random().toString(36).slice(2, 9);
+      const slug = (body.slug || body.name || "event").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "event";
+      const e = eventShape({ id: id, slug: slug, name: body.name || "New event", tagline: "", event_date: body.event_date || "", venue: body.venue || "", created_at: 2 });
+      store.events.unshift(e);
+      store.photos[id] = [];
+      return ok({ event: e });
+    }
+    if ((m = path.match(/^\/api\/events\/([^/]+)\/photos$/)) && method === "GET") {
+      const e = store.events.find((x) => x.id === decodeURIComponent(m[1]));
+      if (!e) return ok({ error: "notfound" }, 404);
+      return ok({ event: e, photos: (store.photos[e.id] || []).slice() });
+    }
+    if ((m = path.match(/^\/api\/events\/([^/]+)\/checkout$/)) && method === "POST") {
+      return ok({ error: "demo", message: "Checkout is turned off in the demo." }, 400);
+    }
+    if ((m = path.match(/^\/api\/events\/([^/]+)$/))) {
+      const id = decodeURIComponent(m[1]);
+      const e = store.events.find((x) => x.id === id);
+      if (!e) return ok({ error: "notfound" }, 404);
+      if (method === "PATCH") {
+        ["name", "slug", "tagline", "event_date", "venue", "daily_limit", "status"].forEach((k) => { if (body[k] !== undefined) e[k] = body[k]; });
+        return ok({ event: e });
+      }
+      if (method === "DELETE") {
+        store.events = store.events.filter((x) => x.id !== id);
+        delete store.photos[id];
+        return ok({ ok: true });
+      }
+    }
+    if ((m = path.match(/^\/api\/photos\/([^/]+)\/(approve|feature|delete)$/)) && method === "POST") {
+      const hit = findPhoto(decodeURIComponent(m[1]));
+      if (!hit) return ok({ error: "notfound" }, 404);
+      const p = hit.p;
+      if (m[2] === "approve") { p.approved = body.approved ? 1 : 0; if (!p.approved) p.featured = 0; return ok({ ok: true, id: p.id, approved: p.approved, featured: p.featured }); }
+      if (m[2] === "feature") { p.featured = body.featured ? 1 : 0; if (p.featured) p.approved = 1; return ok({ ok: true, id: p.id, featured: p.featured, approved: p.approved }); }
+      hit.list.splice(hit.list.indexOf(p), 1);
+      return ok({ ok: true, id: p.id });
+    }
+    return ok({ error: "not_found", message: "Not found." }, 404);
+  }
+
+  window.fetch = function (input, init) {
+    const url = typeof input === "string" ? input : (input && input.url) || "";
+    if (/\/api\//.test(url)) {
+      const method = (init && init.method) || (typeof input === "object" && input && input.method) || "GET";
+      return handle(url, method.toUpperCase(), init);
+    }
+    return realFetch(input, init);
+  };
+
+  injectDemoBanner();
+}
+
+function injectDemoBanner() {
+  const bar = document.createElement("div");
+  bar.className = "demo-ribbon";
+  const msg = document.createElement("span");
+  msg.textContent = "Organizer demo. Explore freely. Nothing you change here is saved.";
+  const guest = document.createElement("a");
+  guest.href = "/";
+  guest.textContent = "Guest view";
+  const make = document.createElement("a");
+  make.href = "https://kamemories.com/login";
+  make.textContent = "Create your own";
+  bar.append(msg, guest, make);
+  const header = document.querySelector(".topbar");
+  if (header && header.parentNode) header.parentNode.insertBefore(bar, header.nextSibling);
+  else document.body.insertBefore(bar, document.body.firstChild);
+}
+
+if (IS_DEMO) installDemoBackend();
 boot();

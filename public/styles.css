@@ -660,6 +660,11 @@ body.cinema .veil {
 .cine-foot-logo { width: 150px; max-width: 54vw; height: auto; display: block; opacity: 0.96; }
 .cine-foot-copy { color: var(--cine-faint); font-size: 0.72rem; letter-spacing: 0.1em; margin: 0; }
 
+/* Organizer demo ribbon (sits under the dashboard topbar on the demo subdomain). */
+.demo-ribbon { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 18px; padding: 10px 18px; background: linear-gradient(90deg, rgba(214, 178, 110, 0.14), rgba(150, 182, 232, 0.12)); border-bottom: 1px solid var(--line-soft); font-size: 0.82rem; color: var(--muted); text-align: center; }
+.demo-ribbon a { color: var(--silver); text-decoration: none; font-weight: 600; border-bottom: 1px solid transparent; }
+.demo-ribbon a:hover { border-bottom-color: var(--silver); }
+
 /* Orchestrated load reveal */
 .reveal { opacity: 0; transform: translateY(18px); animation: cine-rise 1s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; animation-delay: calc(var(--d, 0) * 0.12s + 0.15s); }
 @keyframes cine-rise { to { opacity: 1; transform: none; } }

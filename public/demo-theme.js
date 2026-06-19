@@ -141,7 +141,16 @@
   Object.assign(reset.style, { background: "none", border: "0", color: "rgba(255,255,255,0.6)", font: "inherit", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "3px" });
   reset.addEventListener("click", () => setTheme("#0a1626", "#c7cfdb", true));
 
-  bar.append(lab, swatchWrap, chips, sep, reset);
+  const sep2 = document.createElement("span");
+  sep2.style.cssText = "width:1px;height:18px;background:rgba(255,255,255,0.18)";
+
+  const admin = document.createElement("a");
+  admin.href = "/app";
+  admin.textContent = "Organizer demo";
+  admin.title = "See the dashboard the host uses";
+  Object.assign(admin.style, { color: "rgba(255,255,255,0.92)", font: "inherit", fontWeight: "600", textDecoration: "none", letterSpacing: "0.02em", whiteSpace: "nowrap" });
+
+  bar.append(lab, swatchWrap, chips, sep, reset, sep2, admin);
 
   function fit() { document.body.style.paddingTop = bar.offsetHeight + "px"; }
 

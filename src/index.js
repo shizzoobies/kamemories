@@ -950,6 +950,8 @@ export default {
         if (path === "/") return asset(env, url, request, "/event.html");
         if (path === "/gallery") return asset(env, url, request, "/gallery.html");
         if (path === "/add") return asset(env, url, request, "/add.html");
+        // The demo subdomain also exposes a sandboxed organizer dashboard.
+        if (path === "/app" && slug === "demo") return asset(env, url, request, "/dashboard.html");
       }
 
       return env.ASSETS ? env.ASSETS.fetch(request) : new Response("Not found.", { status: 404 });
