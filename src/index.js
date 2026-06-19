@@ -204,6 +204,20 @@ async function getOrganizer(request, env) {
   return { id: row.id, email: row.email, name: row.name };
 }
 
+// Branded HTML for the sign-in email. A real HTML message with a button and a
+// text fallback lands in inboxes far better than a bare plain-text link.
+function magicLinkHtml(link) {
+  return `<div style="background:#f4f2ec;padding:32px 16px;font-family:Arial,Helvetica,sans-serif;">
+  <div style="max-width:440px;margin:0 auto;background:#ffffff;border-radius:14px;padding:36px 32px;border:1px solid #e7e3d8;">
+    <div style="font-family:Georgia,serif;font-size:22px;color:#0a1322;margin:0 0 16px;">KA Memories</div>
+    <p style="font-size:16px;line-height:1.5;color:#2b3344;margin:0 0 24px;">Tap the button to sign in. This link works once and expires in 15 minutes.</p>
+    <a href="${link}" style="display:inline-block;background:#0a1322;color:#ffffff;text-decoration:none;font-size:15px;font-weight:bold;padding:13px 28px;border-radius:999px;">Sign in</a>
+    <p style="font-size:13px;line-height:1.5;color:#6b7280;margin:24px 0 0;">If the button does not work, paste this link into your browser:<br><a href="${link}" style="color:#0a1322;word-break:break-all;">${link}</a></p>
+    <p style="font-size:12px;color:#9aa0ab;margin:20px 0 0;">If you did not request this, you can ignore this email.</p>
+  </div>
+</div>`;
+}
+
 // Send the magic link. With RESEND_API_KEY set, email it through Resend.
 // Without a provider, return the link so local development can use it.
 async function sendMagicLink(env, email, link) {
@@ -221,8 +235,9 @@ async function sendMagicLink(env, email, link) {
     body: JSON.stringify({
       from,
       to: [email],
-      subject: "Your kamemories sign-in link",
-      text: `Sign in to kamemories.\n\n${link}\n\nThis link works once and expires in 15 minutes. If you did not request it, you can ignore this email.`,
+      subject: "Your KA Memories sign-in link",
+      text: `Sign in to KA Memories.\n\n${link}\n\nThis link works once and expires in 15 minutes. If you did not request it, you can ignore this email.`,
+      html: magicLinkHtml(link),
     }),
   });
   if (!res.ok) {
