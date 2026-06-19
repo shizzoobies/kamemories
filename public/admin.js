@@ -12,6 +12,7 @@ let currentId = null;       // event open in the detail view
 const chat = [];            // assistant messages [{role, content}]
 let codes = [];             // vendor referral codes
 let POOL = 50;              // margin pool per code (customer discount + vendor commission)
+let eventSort = "new", clientSort = "new", codeSort = "new";
 
 let toastTimer = null;
 function toast(msg, isErr) {
@@ -123,7 +124,7 @@ function renderEvents() {
   const rows = data.events.filter(eventMatches);
   $("eventsCount").textContent = rows.length + (rows.length === 1 ? " event" : " events");
   if (!rows.length) { list.innerHTML = '<p class="admin-empty">No events match.</p>'; return; }
-  for (const e of rows) list.appendChild(eventRow(e));
+  for (const e of sortEvents(rows)) list.appendChild(eventRow(e));
 }
 
 function eventRow(e) {
@@ -151,7 +152,7 @@ function renderClients() {
   list.innerHTML = "";
   $("clientsCount").textContent = data.clients.length + (data.clients.length === 1 ? " client" : " clients");
   if (!data.clients.length) { list.innerHTML = '<p class="admin-empty">No clients yet.</p>'; return; }
-  for (const c of data.clients) {
+  for (const c of sortClients(data.clients)) {
     const row = document.createElement("div");
     row.className = "admin-client";
     row.innerHTML = '<div class="admin-client-email">' + esc(c.email) + '</div>' +
@@ -159,6 +160,38 @@ function renderClients() {
     list.appendChild(row);
   }
 }
+
+// ---- Sorting (every list in the console) ----
+function sortEvents(rows) {
+  const a = rows.slice();
+  if (eventSort === "name") a.sort((x, y) => (x.name || "").localeCompare(y.name || ""));
+  else if (eventSort === "status") a.sort((x, y) => (x.status || "").localeCompare(y.status || "") || (y.created_at - x.created_at));
+  else if (eventSort === "paid") a.sort((x, y) => (y.paid_at || 0) - (x.paid_at || 0) || (y.created_at - x.created_at));
+  else if (eventSort === "photos") a.sort((x, y) => (y.total || 0) - (x.total || 0));
+  else a.sort((x, y) => y.created_at - x.created_at);
+  return a;
+}
+function sortClients(rows) {
+  const a = rows.slice();
+  if (clientSort === "name") a.sort((x, y) => (x.email || "").localeCompare(y.email || ""));
+  else if (clientSort === "events") a.sort((x, y) => (y.events || 0) - (x.events || 0));
+  else if (clientSort === "photos") a.sort((x, y) => (y.photos || 0) - (x.photos || 0));
+  else a.sort((x, y) => y.created_at - x.created_at);
+  return a;
+}
+function codeOwed(c) { return Math.max(0, (c.commission_cents || 0) - (c.paid_cents || 0)); }
+function sortCodes(rows) {
+  const a = rows.slice();
+  if (codeSort === "owed") a.sort((x, y) => codeOwed(y) - codeOwed(x));
+  else if (codeSort === "uses") a.sort((x, y) => (y.redemptions || 0) - (x.redemptions || 0));
+  else if (codeSort === "discount") a.sort((x, y) => (y.discount_pct || 0) - (x.discount_pct || 0));
+  else if (codeSort === "name") a.sort((x, y) => (x.vendor_name || "").localeCompare(y.vendor_name || ""));
+  else a.sort((x, y) => y.created_at - x.created_at);
+  return a;
+}
+$("eventsSort").addEventListener("change", (e) => { eventSort = e.target.value; renderEvents(); });
+$("clientsSort").addEventListener("change", (e) => { clientSort = e.target.value; renderClients(); });
+$("codesSort").addEventListener("change", (e) => { codeSort = e.target.value; renderCodes(); });
 
 // ---- Detail view ----
 function openEvent(id) {
@@ -495,21 +528,28 @@ function renderCodes() {
   if (!list) return;
   list.innerHTML = "";
   if (!codes.length) { list.innerHTML = '<p class="admin-empty">No vendor codes yet. Create one to start a referral.</p>'; return; }
-  for (const c of codes) {
+  for (const c of sortCodes(codes)) {
     const earn = (c.pool_pct || POOL) - c.discount_pct;
+    const owed = codeOwed(c);
     const card = document.createElement("div");
     card.className = "code-card" + (c.active ? "" : " off");
     card.innerHTML =
       '<span class="code-tag">' + esc(c.code) + '</span>' +
       '<div class="code-main"><strong>' + esc(c.vendor_name) + '</strong>' +
         '<span class="code-split">' + c.discount_pct + '% off &middot; vendor earns ' + earn + '% &middot; you keep ' + (100 - (c.pool_pct || POOL)) + '%</span></div>' +
-      '<div class="code-stats">' + (c.redemptions || 0) + (c.redemptions === 1 ? ' use' : ' uses') + ' &middot; <strong>' + money(c.commission_cents) + '</strong> owed</div>';
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "btn code-toggle";
-    btn.textContent = c.active ? "Deactivate" : "Activate";
-    btn.addEventListener("click", () => toggleCode(c, btn));
-    card.appendChild(btn);
+      '<div class="code-stats">' + (c.redemptions || 0) + (c.redemptions === 1 ? ' use' : ' uses') +
+        ' &middot; <strong class="code-owed' + (owed > 0 ? ' due' : '') + '">' + money(owed) + '</strong> owed' +
+        ((c.paid_cents || 0) > 0 ? ' &middot; ' + money(c.paid_cents) + ' paid' : '') + '</div>';
+    const actions = document.createElement("div");
+    actions.className = "code-actions";
+    const payBtn = document.createElement("button");
+    payBtn.type = "button"; payBtn.className = "btn code-pay"; payBtn.textContent = "Mark paid";
+    payBtn.addEventListener("click", () => openPayout(c));
+    const tgl = document.createElement("button");
+    tgl.type = "button"; tgl.className = "btn code-toggle"; tgl.textContent = c.active ? "Deactivate" : "Activate";
+    tgl.addEventListener("click", () => toggleCode(c, tgl));
+    actions.append(payBtn, tgl);
+    card.appendChild(actions);
     list.appendChild(card);
   }
 }
@@ -567,6 +607,73 @@ $("codeForm").addEventListener("submit", async (e) => {
     toast("Code " + d.code.code + " created.");
   } catch (err) {
     setMsg("codeMsg", "No connection. Try again.", true);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// ---- Vendor payouts (zero out commission owed, with an optional receipt) ----
+let payoutCode = null;
+function payoutSummary(c) {
+  const owed = codeOwed(c);
+  $("payoutFor").textContent = "Owed " + money(owed) + " to " + c.vendor_name + " (" + c.code + ")";
+  $("poAmount").value = (owed / 100).toFixed(2);
+}
+function openPayout(c) {
+  payoutCode = c;
+  payoutSummary(c);
+  $("poNote").value = ""; $("poReceipt").value = "";
+  setMsg("payoutMsg", "", false);
+  $("poHistory").innerHTML = "";
+  openModal("payoutModal");
+  loadPayoutHistory(c.id);
+  setTimeout(() => $("poAmount").focus(), 60);
+}
+async function loadPayoutHistory(codeId) {
+  try {
+    const r = await fetch("/api/admin/codes/" + encodeURIComponent(codeId) + "/payouts", { credentials: "same-origin" });
+    if (!r.ok) return;
+    const d = await r.json();
+    renderPayoutHistory(d.payouts || []);
+  } catch (e) {}
+}
+function renderPayoutHistory(list) {
+  const box = $("poHistory");
+  if (!list.length) { box.innerHTML = ""; return; }
+  box.innerHTML = '<div class="po-hist-h">Past payouts</div>' + list.map((p) => {
+    const rec = p.has_receipt ? ' <a class="po-receipt" href="/api/admin/payouts/' + encodeURIComponent(p.id) + '/receipt" target="_blank" rel="noopener">receipt</a>' : '';
+    const note = p.note ? ' <span class="po-hist-note">' + esc(p.note) + '</span>' : '';
+    return '<div class="po-hist-row"><span class="po-hist-amt">' + money(p.amount_cents) + '</span> <span class="po-hist-date">' + fmtDate(p.created_at) + '</span>' + note + rec + '</div>';
+  }).join("");
+}
+$("payoutClose").addEventListener("click", () => closeModal("payoutModal"));
+$("payoutModal").addEventListener("click", (e) => { if (e.target.id === "payoutModal") closeModal("payoutModal"); });
+$("payoutForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!payoutCode) return;
+  const btn = $("poSave");
+  const cents = Math.round((parseFloat($("poAmount").value) || 0) * 100);
+  if (!(cents > 0)) { setMsg("payoutMsg", "Enter a payout amount.", true); return; }
+  btn.disabled = true;
+  const fd = new FormData();
+  fd.append("amount_cents", String(cents));
+  fd.append("note", $("poNote").value.trim());
+  const f = $("poReceipt").files[0];
+  if (f) fd.append("receipt", f);
+  try {
+    const r = await fetch("/api/admin/codes/" + encodeURIComponent(payoutCode.id) + "/payouts", { method: "POST", credentials: "same-origin", body: fd });
+    const d = await r.json();
+    if (!r.ok) { setMsg("payoutMsg", d.message || "Could not record the payout.", true); return; }
+    payoutCode.commission_cents = d.commission_cents;
+    payoutCode.paid_cents = d.paid_cents;
+    renderCodes();
+    payoutSummary(payoutCode);
+    $("poNote").value = ""; $("poReceipt").value = "";
+    setMsg("payoutMsg", "Payout recorded.", false);
+    loadPayoutHistory(payoutCode.id);
+    toast("Payout recorded.");
+  } catch (err) {
+    setMsg("payoutMsg", "No connection. Try again.", true);
   } finally {
     btn.disabled = false;
   }

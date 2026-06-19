@@ -1199,13 +1199,15 @@ const VENDOR_POOL_PCT = 50; // margin set aside per code: customer discount + ve
 async function adminListCodes(request, env) {
   const gate = await requireAdmin(request, env);
   if (gate.error) return gate.error;
+  // Subqueries (not joins) so redemption and payout sums do not multiply together.
   const { results } = await env.DB.prepare(
     `SELECT vc.id, vc.code, vc.vendor_name, vc.vendor_email, vc.discount_pct, vc.pool_pct, vc.active, vc.created_at,
-            COUNT(vr.id) AS redemptions,
-            COALESCE(SUM(vr.gross_cents), 0) AS gross_cents,
-            COALESCE(SUM(vr.commission_cents), 0) AS commission_cents
-     FROM vendor_codes vc LEFT JOIN vendor_redemptions vr ON vr.code_id = vc.id
-     GROUP BY vc.id ORDER BY vc.created_at DESC`
+            (SELECT COUNT(*) FROM vendor_redemptions vr WHERE vr.code_id = vc.id) AS redemptions,
+            (SELECT COALESCE(SUM(gross_cents), 0) FROM vendor_redemptions vr WHERE vr.code_id = vc.id) AS gross_cents,
+            (SELECT COALESCE(SUM(commission_cents), 0) FROM vendor_redemptions vr WHERE vr.code_id = vc.id) AS commission_cents,
+            (SELECT COALESCE(SUM(amount_cents), 0) FROM vendor_payouts vp WHERE vp.code_id = vc.id) AS paid_cents,
+            (SELECT COUNT(*) FROM vendor_payouts vp WHERE vp.code_id = vc.id) AS payouts
+     FROM vendor_codes vc ORDER BY vc.created_at DESC`
   ).all();
   return json({ codes: results || [], pool: VENDOR_POOL_PCT, billing: billingOn(env) });
 }
@@ -1278,6 +1280,79 @@ async function adminUpdateCode(request, env, id) {
   }
   await env.DB.prepare("UPDATE vendor_codes SET active = ? WHERE id = ?").bind(active, id).run();
   return json({ ok: true, id, active });
+}
+
+const RECEIPT_MAX_BYTES = 10 * 1024 * 1024;
+
+// Record a payout against a vendor's owed commission, with an optional receipt
+// (PDF or image) stored privately in R2. Multipart so the file can ride along.
+async function adminCreatePayout(request, env, codeId) {
+  const gate = await requireAdmin(request, env);
+  if (gate.error) return gate.error;
+  const vc = await env.DB.prepare("SELECT id FROM vendor_codes WHERE id = ?").bind(codeId).first();
+  if (!vc) return json({ error: "notfound", message: "Code not found." }, 404);
+
+  let form;
+  try { form = await request.formData(); } catch { return json({ error: "bad", message: "Bad request." }, 400); }
+  const amount = Math.round(Number(form.get("amount_cents")) || 0);
+  if (!(amount > 0)) return json({ error: "amount", message: "Enter a payout amount." }, 400);
+  const note = (form.get("note") || "").toString().slice(0, 280).trim() || null;
+
+  let receiptKey = null, receiptType = null;
+  const file = form.get("receipt");
+  if (file && typeof file.arrayBuffer === "function" && file.size > 0) {
+    const ct = file.type || "application/octet-stream";
+    if (ct !== "application/pdf" && !ct.startsWith("image/")) return json({ error: "file", message: "Attach a PDF or an image." }, 415);
+    if (file.size > RECEIPT_MAX_BYTES) return json({ error: "file_size", message: "That file is too large. Max 10MB." }, 413);
+    const pid = crypto.randomUUID();
+    const ext = ct === "application/pdf" ? "pdf" : extFor(ct);
+    receiptKey = `payouts/${codeId}/${pid}.${ext}`;
+    receiptType = ct;
+    await env.BUCKET.put(receiptKey, await file.arrayBuffer(), { httpMetadata: { contentType: ct } });
+  }
+
+  const id = crypto.randomUUID();
+  const now = Date.now();
+  await env.DB.prepare(
+    `INSERT INTO vendor_payouts (id, code_id, amount_cents, note, receipt_key, receipt_type, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).bind(id, codeId, amount, note, receiptKey, receiptType, now).run();
+
+  const sums = await env.DB.prepare(
+    `SELECT (SELECT COALESCE(SUM(commission_cents), 0) FROM vendor_redemptions WHERE code_id = ?) AS commission,
+            (SELECT COALESCE(SUM(amount_cents), 0) FROM vendor_payouts WHERE code_id = ?) AS paid`
+  ).bind(codeId, codeId).first();
+  return json({
+    ok: true,
+    payout: { id, amount_cents: amount, note, has_receipt: !!receiptKey, created_at: now },
+    commission_cents: sums ? sums.commission : 0,
+    paid_cents: sums ? sums.paid : 0,
+  }, 201);
+}
+
+async function adminListPayouts(request, env, codeId) {
+  const gate = await requireAdmin(request, env);
+  if (gate.error) return gate.error;
+  const { results } = await env.DB.prepare(
+    "SELECT id, amount_cents, note, receipt_key, created_at FROM vendor_payouts WHERE code_id = ? ORDER BY created_at DESC"
+  ).bind(codeId).all();
+  const payouts = (results || []).map((p) => ({ id: p.id, amount_cents: p.amount_cents, note: p.note, has_receipt: !!p.receipt_key, created_at: p.created_at }));
+  return json({ payouts });
+}
+
+// Serve a payout receipt from R2, operator only.
+async function adminReceipt(request, env, payoutId) {
+  const gate = await requireAdmin(request, env);
+  if (gate.error) return gate.error;
+  const p = await env.DB.prepare("SELECT receipt_key, receipt_type FROM vendor_payouts WHERE id = ?").bind(payoutId).first();
+  if (!p || !p.receipt_key) return new Response("Not found.", { status: 404 });
+  const obj = await env.BUCKET.get(p.receipt_key);
+  if (!obj) return new Response("Not found.", { status: 404 });
+  const headers = new Headers();
+  obj.writeHttpMetadata(headers);
+  headers.set("content-type", p.receipt_type || "application/octet-stream");
+  headers.set("cache-control", "private, max-age=60");
+  return new Response(obj.body, { headers });
 }
 
 // From a paid Checkout Session, log a vendor-code redemption (idempotent on the
@@ -1394,6 +1469,14 @@ export default {
         if (path === "/api/admin/codes" && method === "POST") return adminCreateCode(request, env);
         const adminCode = path.match(/^\/api\/admin\/codes\/([^/]+)$/);
         if (adminCode && method === "PATCH") return adminUpdateCode(request, env, decodeURIComponent(adminCode[1]));
+        const adminPayouts = path.match(/^\/api\/admin\/codes\/([^/]+)\/payouts$/);
+        if (adminPayouts) {
+          const cid = decodeURIComponent(adminPayouts[1]);
+          if (method === "GET") return adminListPayouts(request, env, cid);
+          if (method === "POST") return adminCreatePayout(request, env, cid);
+        }
+        const adminReceiptM = path.match(/^\/api\/admin\/payouts\/([^/]+)\/receipt$/);
+        if (adminReceiptM && method === "GET") return adminReceipt(request, env, decodeURIComponent(adminReceiptM[1]));
 
         if (method === "GET") {
           if (path === "/") return asset(env, url, request, "/home.html");

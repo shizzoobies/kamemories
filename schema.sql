@@ -125,3 +125,17 @@ CREATE TABLE IF NOT EXISTS vendor_redemptions (
 );
 CREATE INDEX IF NOT EXISTS idx_vendor_redemptions_code ON vendor_redemptions (code_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_vendor_redemptions_session ON vendor_redemptions (stripe_session);
+
+-- Payouts the operator has made to a vendor against the commission owed. Owed for
+-- a code is SUM(redemption commission) minus SUM(payout amount). An optional
+-- receipt (PDF or image) is stored in R2 under payouts/{code_id}/{uuid}.
+CREATE TABLE IF NOT EXISTS vendor_payouts (
+  id           TEXT PRIMARY KEY,
+  code_id      TEXT NOT NULL,            -- joins vendor_codes.id
+  amount_cents INTEGER NOT NULL,
+  note         TEXT,
+  receipt_key  TEXT,                     -- R2 object key, if a receipt was attached
+  receipt_type TEXT,                     -- content type of the receipt
+  created_at   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_vendor_payouts_code ON vendor_payouts (code_id);

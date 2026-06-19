@@ -39,15 +39,39 @@
     <div id="newbkList" class="admin-list"></div>
   </div>
 
-  <div class="admin-colhead"><h2 class="admin-h">Events</h2><span class="admin-count" id="eventsCount"></span></div>
+  <div class="admin-colhead"><h2 class="admin-h">Events</h2><span class="admin-count" id="eventsCount"></span>
+    <select id="eventsSort" class="admin-sort" aria-label="Sort events">
+      <option value="new">Newest</option>
+      <option value="name">Name A to Z</option>
+      <option value="status">Status</option>
+      <option value="paid">Recently paid</option>
+      <option value="photos">Most photos</option>
+    </select>
+  </div>
   <input id="eventsSearch" class="cur-input admin-search" type="search" placeholder="Search by event, address, or client" aria-label="Search events" />
   <div id="eventsList" class="admin-list"></div>
 
-  <div class="admin-colhead admin-colhead-sp"><h2 class="admin-h">Vendor codes</h2><button class="btn" id="newCodeBtn" type="button">New code</button></div>
+  <div class="admin-colhead admin-colhead-sp"><h2 class="admin-h">Vendor codes</h2>
+    <select id="codesSort" class="admin-sort" aria-label="Sort vendor codes">
+      <option value="new">Newest</option>
+      <option value="owed">Most owed</option>
+      <option value="uses">Most used</option>
+      <option value="discount">Highest discount</option>
+      <option value="name">Vendor A to Z</option>
+    </select>
+    <button class="btn" id="newCodeBtn" type="button">New code</button>
+  </div>
   <p class="admin-sub">Give a vendor a referral code. They pick the customer discount (up to 50%); you owe them the rest of the 50% and keep the other half. Used at checkout.</p>
   <div id="codesList" class="admin-list"></div>
 
-  <div class="admin-colhead admin-colhead-sp"><h2 class="admin-h">Clients</h2><span class="admin-count" id="clientsCount"></span></div>
+  <div class="admin-colhead admin-colhead-sp"><h2 class="admin-h">Clients</h2><span class="admin-count" id="clientsCount"></span>
+    <select id="clientsSort" class="admin-sort" aria-label="Sort clients">
+      <option value="new">Newest</option>
+      <option value="name">Email A to Z</option>
+      <option value="events">Most events</option>
+      <option value="photos">Most photos</option>
+    </select>
+  </div>
   <div id="clientsList" class="admin-clients"></div>
 </section>
 
@@ -196,6 +220,25 @@
       <p id="codeMsg" class="auth-msg"></p>
       <div class="row"><button class="btn primary" id="cdCreate" type="submit">Create code</button></div>
     </form>
+  </div>
+</div>
+
+<!-- Record a vendor payout -->
+<div class="modal" id="payoutModal">
+  <div class="modal-card">
+    <button class="lb-close" id="payoutClose" aria-label="Close">&times;</button>
+    <h2 class="display" style="margin:0 0 4px">Record a payout</h2>
+    <p class="auth-sub" id="payoutFor"></p>
+    <form id="payoutForm">
+      <div class="form-grid">
+        <label class="field"><span>Amount paid ($)</span><input id="poAmount" type="number" min="0" step="0.01" /></label>
+        <label class="field"><span>Note (optional)</span><input id="poNote" type="text" maxlength="280" placeholder="Venmo, check number, date" /></label>
+      </div>
+      <label class="field"><span>Receipt, PDF or image (optional)</span><input id="poReceipt" class="po-file" type="file" accept="application/pdf,image/*" /></label>
+      <p id="payoutMsg" class="auth-msg"></p>
+      <div class="row"><button class="btn primary" id="poSave" type="submit">Record payout</button></div>
+    </form>
+    <div class="po-history" id="poHistory"></div>
   </div>
 </div>
 

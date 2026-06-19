@@ -34,7 +34,9 @@ kamemories generalizes that idea into a product you can sell access to.
   coupon + promotion code, accepted at checkout). Each carries up to a 50% pool;
   the vendor picks the customer discount (1 to 50%) and we owe them the rest of
   the pool, keeping the other 50%. The webhook logs each paid redemption so
-  `/admin` shows commission owed per vendor. Built on the existing Stripe
+  `/admin` shows commission owed per vendor; the operator records payouts against
+  it (zeroing the owed amount) with an optional PDF/image receipt stored in R2.
+  Built on the existing Stripe
   integration (pinned to API version 2024-06-20 so promotion_codes accept a
   coupon); no new secrets.
 - Per event, two-tier curation: uploads land pending (approved = 0); approve
@@ -141,13 +143,15 @@ for navigations.
 ## D1 schema
 
 `organizers`, `login_tokens` (token_hash), `sessions` (id_hash), `events`,
-`uploads`, `likes`, `vendor_codes`, `vendor_redemptions`. Tokens and session ids
-are stored as sha-256 hashes, never raw. `uploads` is scoped by `event_id`; R2
+`uploads`, `likes`, `vendor_codes`, `vendor_redemptions`, `vendor_payouts`.
+Tokens and session ids are stored as sha-256 hashes, never raw. `uploads` is scoped by `event_id`; R2
 key format is `{event_id}/{day}/{uuid}.{ext}` and the thumbnail is the same with
 a `.t` before the extension. `likes` (primary key `upload_id` + `gid`) holds one
 vote per anonymous device per photo. `events.auto_approve` gates instant
 publishing. `vendor_codes` are referral discount codes (a Stripe coupon +
-promotion code); `vendor_redemptions` logs each paid use for commission owed. See
+promotion code); `vendor_redemptions` logs each paid use for commission owed;
+`vendor_payouts` records what the operator has paid a vendor (with an optional
+receipt stored in R2 under `payouts/`), so owed = commission minus payouts. See
 `schema.sql`.
 
 ## Worker constants
