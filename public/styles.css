@@ -628,9 +628,14 @@ body.cinema .veil {
 .cine-includes li::before { content: ""; position: absolute; left: 4px; top: 22px; width: 7px; height: 7px; border: 1px solid var(--cine-ink); transform: rotate(45deg); }
 
 /* Footer */
-.cine-foot { position: relative; z-index: 1; text-align: center; padding: clamp(60px, 10vh, 110px) 24px clamp(50px, 8vh, 90px); border-top: 1px solid var(--cine-line); }
-.cine-foot .cine-brand { display: inline-block; font-size: 1.4rem; }
-.cine-foot p { color: var(--cine-faint); font-size: 0.84rem; letter-spacing: 0.06em; margin: 12px 0 0; }
+.cine-foot {
+  position: relative; z-index: 1; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 9px;
+  padding: 24px 24px 26px; background: #060a13;
+  border-top: 1px solid var(--cine-line);
+}
+.cine-foot-logo { width: 150px; max-width: 54vw; height: auto; display: block; opacity: 0.96; }
+.cine-foot-copy { color: var(--cine-faint); font-size: 0.72rem; letter-spacing: 0.1em; margin: 0; }
 
 /* Orchestrated load reveal */
 .reveal { opacity: 0; transform: translateY(18px); animation: cine-rise 1s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; animation-delay: calc(var(--d, 0) * 0.12s + 0.15s); }
