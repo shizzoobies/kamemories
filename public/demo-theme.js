@@ -206,13 +206,14 @@
   flip.textContent = "Click to see Organizer View";
   flip.title = "See the dashboard the host uses";
 
-  // "View on your phone": opens a modal with a QR that points at this demo, so a
-  // visitor can scan it and see the live event on their own phone. The QR is a
-  // static, self-hosted asset (no library loads on this page), so it is instant.
+  // A QR code for this demo. On a wide screen it reads "View on your phone" (scan
+  // it yourself); on a phone, where that is redundant, it reads "QR Code Demo" so
+  // a visitor can show it to someone else. CSS swaps the two labels by width. The
+  // QR is a static, self-hosted asset (no library loads here), so it is instant.
   const phone = document.createElement("button");
   phone.type = "button"; phone.className = "demo-phone";
-  phone.title = "Scan a QR code to open this demo on your phone";
-  phone.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2.2"/><line x1="11" y1="18.5" x2="13" y2="18.5"/></svg><span>View on your phone</span>';
+  phone.title = "A QR code for this demo";
+  phone.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14.5 15h.01M19.5 15h.01M14.5 20h.01M19.5 20h.01M17 17.5h.01"/></svg><span class="demo-phone-wide">View on your phone</span><span class="demo-phone-narrow">QR Code Demo</span>';
 
   const sep3 = document.createElement("span"); sep3.className = "demo-sep";
   bar.append(lab, nameInput, colors, sep2, phone, sep3, flip);
@@ -223,12 +224,12 @@
     const modal = document.createElement("div");
     modal.className = "demoqr-modal"; modal.setAttribute("aria-hidden", "true");
     modal.innerHTML =
-      '<div class="demoqr-dialog" role="dialog" aria-modal="true" aria-label="View this demo on your phone">' +
+      '<div class="demoqr-dialog" role="dialog" aria-modal="true" aria-label="QR code for this demo">' +
         '<button class="demoqr-close" type="button" aria-label="Close">&times;</button>' +
-        '<p class="demoqr-eyebrow">See it on your phone</p>' +
+        '<p class="demoqr-eyebrow">Scan to view</p>' +
         '<h3 class="demoqr-title">Scan to open the demo</h3>' +
-        '<div class="demoqr-card"><img class="demoqr-img" src="/demo-qr.svg" alt="QR code that opens this demo on your phone" width="232" height="232" /></div>' +
-        '<p class="demoqr-note">Point your phone camera at the code. The live demo opens right on your phone, no app to install.</p>' +
+        '<div class="demoqr-card"><img class="demoqr-img" src="/demo-qr.svg" alt="QR code that opens this demo" width="232" height="232" /></div>' +
+        '<p class="demoqr-note">Point a phone camera at the code to open the live demo, or show it to someone else. No app to install.</p>' +
       '</div>';
     document.body.appendChild(modal);
     const openM = () => { modal.classList.add("show"); modal.setAttribute("aria-hidden", "false"); };

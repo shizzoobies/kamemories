@@ -760,6 +760,8 @@ body.cinema .veil {
 .demo-phone { display: inline-flex; align-items: center; gap: 7px; color: #fff; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.34); font: inherit; font-weight: 600; letter-spacing: 0.01em; white-space: nowrap; cursor: pointer; padding: 8px 15px; border-radius: 999px; transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease; }
 .demo-phone:hover { background: rgba(255, 255, 255, 0.14); border-color: rgba(255, 255, 255, 0.62); transform: translateY(-1px); }
 .demo-phone svg { width: 15px; height: 15px; flex: none; }
+.demo-phone-narrow { display: none; }
+@media (max-width: 620px) { .demo-phone-wide { display: none; } .demo-phone-narrow { display: inline; } }
 
 /* "View on your phone" modal: a scannable QR on a bright card, framed by the
    visitor's chosen palette so it feels part of their event. Built by demo-theme.js. */
