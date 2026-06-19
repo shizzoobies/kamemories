@@ -41,6 +41,8 @@ RESERVED_SUBDOMAINS = "www,app,api,mail,static,assets,cdn,admin,pics,help,suppor
 # Resend. ka-testing.com is verified today; switch to login@kamemories.com once
 # that domain is verified at https://resend.com/domains for full branding.
 MAIL_FROM = "KA Memories <login@ka-testing.com>"
+# Inbox the public contact form delivers to.
+CONTACT_TO = "memories@ka-performancefl.com"
 # Secrets (set with `npx wrangler secret put NAME`; values never live in this file,
 # and a deploy never clears them):
 #   RESEND_API_KEY        transactional email. Without it, login runs in dev mode

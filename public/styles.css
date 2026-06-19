@@ -799,6 +799,23 @@ body.cinema .veil {
 .cine-note { min-height: 1.2em; margin-top: 16px; font-size: 0.88rem; color: var(--cine-dim); line-height: 1.5; }
 .cine-note.err { color: #e6a39b; }
 .cine-sent strong { color: var(--cine-ink); }
+
+/* Contact modal (marketing home) */
+.cine-modal { position: fixed; inset: 0; z-index: 50; display: none; align-items: center; justify-content: center; padding: 22px; background: rgba(4, 8, 16, 0.72); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.cine-modal.show { display: flex; }
+.cine-modal-card { position: relative; width: min(460px, 100%); max-height: 90vh; overflow-y: auto; background: linear-gradient(180deg, rgba(18, 24, 38, 0.98), rgba(11, 16, 27, 0.98)); border: 1px solid var(--cine-line); border-radius: 18px; padding: clamp(26px, 4vw, 38px); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6); }
+.cine-modal-close { position: absolute; top: 12px; right: 16px; background: none; border: 0; color: var(--cine-dim); font-size: 1.7rem; line-height: 1; cursor: pointer; }
+.cine-modal-close:hover { color: var(--cine-ink); }
+.cine-modal-title { font-family: var(--font-cormorant); font-weight: 500; font-size: 1.9rem; color: var(--cine-ink); margin: 0 0 6px; }
+.cine-modal-sub { color: var(--cine-dim); font-size: 0.95rem; line-height: 1.5; margin: 0 0 20px; }
+.cine-form { display: flex; flex-direction: column; gap: 6px; }
+.cine-form textarea.cine-field { border: 1px solid var(--cine-line); border-radius: 10px; padding: 12px; resize: vertical; min-height: 96px; font-family: "Hanken Grotesk", sans-serif; }
+.cine-form .cine-btn { width: 100%; justify-content: center; margin-top: 18px; background: var(--cine-ink); color: #0a1322; border-color: var(--cine-ink); }
+.cine-form .cine-btn:hover { background: transparent; color: var(--cine-ink); }
+.cine-form-msg { min-height: 1.1em; margin: 10px 0 0; font-size: 0.86rem; color: var(--cine-dim); }
+.cine-form-msg.err { color: #e6a39b; }
+.cine-form-done { text-align: center; padding: 16px 0; }
+.cine-hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
 .cine-dev { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--cine-line); }
 .cine-dev a { color: var(--cine-dim); word-break: break-all; font-size: 0.82rem; }
 

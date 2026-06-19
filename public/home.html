@@ -27,6 +27,7 @@
     <a href="#how">How it works</a>
     <a href="#pricing">Pricing</a>
     <a href="https://demo.kamemories.com" target="_blank" rel="noopener">Live demo</a>
+    <a class="js-contact-open" href="mailto:memories@ka-performancefl.com">Contact</a>
     <a class="cine-signin" href="/login">Sign in</a>
   </nav>
 </header>
@@ -139,7 +140,7 @@
         <h3 class="cine-bespoke-title">Dreaming bigger?</h3>
         <p class="cine-bespoke-sub">A fully custom wedding website and app on your own domain, with RSVPs, save-the-dates, and registry. Yours for two years from the day we build it, so it is working for you long before the wedding.</p>
       </div>
-      <a class="cine-btn" href="mailto:memories@ka-performancefl.com?subject=Custom%20wedding%20website%20and%20app">Contact us</a>
+      <a class="cine-btn js-contact-open" href="mailto:memories@ka-performancefl.com?subject=Custom%20wedding%20website%20and%20app">Contact us</a>
     </div>
   </section>
 </main>
@@ -148,6 +149,30 @@
   <a class="cine-foot-top" href="/" aria-label="Back to top"><img class="cine-foot-logo" src="/logo.png" alt="KA Memories" width="605" height="361" /></a>
   <p class="cine-foot-copy">&copy; 2026 KA Memories. All rights reserved.</p>
 </footer>
+
+<div class="cine-modal" id="contactModal" aria-hidden="true">
+  <div class="cine-modal-card" role="dialog" aria-modal="true" aria-label="Contact us">
+    <button class="cine-modal-close" id="contactClose" type="button" aria-label="Close">&times;</button>
+    <div id="contactBody">
+      <h2 class="cine-modal-title">Let's talk</h2>
+      <p class="cine-modal-sub">Tell us about your celebration and we will be in touch within a day.</p>
+      <form id="contactForm" class="cine-form">
+        <input class="cine-field" id="ctName" type="text" placeholder="Your name" maxlength="120" autocomplete="name" required />
+        <input class="cine-field" id="ctEmail" type="email" placeholder="Email" maxlength="200" autocomplete="email" required />
+        <input class="cine-field" id="ctPhone" type="tel" placeholder="Phone (optional)" maxlength="60" autocomplete="tel" />
+        <input class="cine-field" id="ctDate" type="text" placeholder="Event date (optional)" maxlength="120" />
+        <textarea class="cine-field" id="ctMessage" rows="4" placeholder="Tell us about your event" maxlength="4000" required></textarea>
+        <input class="cine-hp" id="ctCompany" type="text" tabindex="-1" autocomplete="off" aria-hidden="true" placeholder="Company" />
+        <p class="cine-form-msg" id="contactMsg"></p>
+        <button class="cine-btn" id="contactSubmit" type="submit">Send message</button>
+      </form>
+    </div>
+    <div class="cine-form-done" id="contactDone" style="display:none">
+      <h2 class="cine-modal-title">Thank you.</h2>
+      <p class="cine-modal-sub">Your message is on its way. We will reply soon.</p>
+    </div>
+  </div>
+</div>
 
 <script src="/home.js"></script>
 </body>

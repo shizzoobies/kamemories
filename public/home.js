@@ -158,3 +158,54 @@ if (a && b && SOURCES.length) {
   const top = document.querySelector(".cine-foot-top");
   if (top) top.addEventListener("click", (e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); });
 })();
+
+// Contact: a modal form that emails the inquiry to us (POST /api/contact). The
+// triggers keep a mailto href as a no-JS fallback; here we intercept and open it.
+(function () {
+  const modal = document.getElementById("contactModal");
+  if (!modal) return;
+  const form = document.getElementById("contactForm");
+  const bodyEl = document.getElementById("contactBody");
+  const done = document.getElementById("contactDone");
+  const msg = document.getElementById("contactMsg");
+  const val = (id) => (document.getElementById(id).value || "").trim();
+
+  function open() {
+    bodyEl.style.display = "";
+    done.style.display = "none";
+    modal.classList.add("show");
+    modal.setAttribute("aria-hidden", "false");
+    setTimeout(() => document.getElementById("ctName").focus(), 60);
+  }
+  function close() { modal.classList.remove("show"); modal.setAttribute("aria-hidden", "true"); }
+
+  document.querySelectorAll(".js-contact-open").forEach((el) =>
+    el.addEventListener("click", (e) => { e.preventDefault(); open(); })
+  );
+  document.getElementById("contactClose").addEventListener("click", close);
+  modal.addEventListener("click", (e) => { if (e.target === modal) close(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && modal.classList.contains("show")) close(); });
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById("contactSubmit");
+    btn.disabled = true;
+    msg.textContent = ""; msg.classList.remove("err");
+    const payload = {
+      name: val("ctName"), email: val("ctEmail"), phone: val("ctPhone"),
+      event_date: val("ctDate"), message: val("ctMessage"), company: val("ctCompany"),
+    };
+    try {
+      const r = await fetch("/api/contact", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { msg.textContent = d.message || "Something went wrong. Try again."; msg.classList.add("err"); return; }
+      bodyEl.style.display = "none";
+      done.style.display = "block";
+    } catch {
+      msg.textContent = "No connection. Try again.";
+      msg.classList.add("err");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+})();

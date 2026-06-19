@@ -233,6 +233,56 @@ async function sendMagicLink(env, email, link) {
   return { sent: true };
 }
 
+// Public contact form. Emails the inquiry to the operators via Resend, with the
+// sender as reply-to so a reply goes straight to the customer. A hidden honeypot
+// field silently drops bots. Without a mail provider it logs (dev mode).
+async function handleContact(request, env) {
+  let body;
+  try { body = await request.json(); } catch { return json({ error: "bad", message: "Bad request." }, 400); }
+  if ((body.company || "").toString().trim()) return json({ ok: true }); // honeypot
+  const name = (body.name || "").toString().trim().slice(0, 120);
+  const email = (body.email || "").toString().trim().slice(0, 200);
+  const phone = (body.phone || "").toString().trim().slice(0, 60);
+  const date = (body.event_date || "").toString().trim().slice(0, 120);
+  const message = (body.message || "").toString().trim().slice(0, 4000);
+  if (!name) return json({ error: "name", message: "Tell us your name." }, 400);
+  if (!isEmail(email)) return json({ error: "email", message: "Add a valid email so we can reply." }, 400);
+  if (!message) return json({ error: "message", message: "Add a short message." }, 400);
+
+  const to = env.CONTACT_TO || "memories@ka-performancefl.com";
+  if (!env.RESEND_API_KEY) { console.log(`[dev] contact ${name} <${email}> ${phone} ${date}: ${message}`); return json({ ok: true }); }
+
+  const text = [
+    "New inquiry from the kamemories site.",
+    "",
+    "Name:  " + name,
+    "Email: " + email,
+    phone ? "Phone: " + phone : null,
+    date ? "Event date: " + date : null,
+    "",
+    "Message:",
+    message,
+  ].filter((l) => l !== null).join("\n");
+
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      from: env.MAIL_FROM || "KA Memories <login@ka-testing.com>",
+      to: [to],
+      reply_to: email,
+      subject: "New inquiry from " + name,
+      text: text,
+    }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    console.log(`[mail] contact resend failed ${res.status}: ${detail}`);
+    return json({ error: "send", message: "Could not send right now. Please email memories@ka-performancefl.com directly." }, 502);
+  }
+  return json({ ok: true });
+}
+
 // ---------------------------------------------------------------------------
 // Event lookups and shapes
 // ---------------------------------------------------------------------------
@@ -1074,6 +1124,7 @@ export default {
         if (path === "/auth/verify" && method === "GET") return authVerify(request, env, url);
         if (path === "/api/auth/me" && method === "GET") return authMe(request, env);
         if (path === "/api/auth/logout" && method === "POST") return authLogout(request, env);
+        if (path === "/api/contact" && method === "POST") return handleContact(request, env);
 
         if (path === "/api/events" && method === "GET") return eventsList(request, env);
         if (path === "/api/events" && method === "POST") return eventsCreate(request, env);
