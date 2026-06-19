@@ -1,9 +1,10 @@
-// Demo-only personalization: a "make it yours" bar. A visitor types their names
-// and picks two colors (one-tap presets or a typed hex code), and the whole demo
-// re-skins live, names and palette, by overriding the Midnight Pearl CSS variables
-// and the displayed event name. Client-side only; nothing is saved to the server.
-// The choices ride along in localStorage so the event pages and the organizer demo
-// stay in sync. Active only on the demo subdomain (demo.kamemories.com).
+// Demo-only personalization: a premium "make it yours" bar. A visitor types their
+// names and picks two colors (one-tap presets, the full system color picker, or a
+// typed hex), and the whole demo re-skins live, names and palette, by overriding
+// the Midnight Pearl CSS variables and the displayed event name. Client-side only;
+// nothing is saved to the server. The choices ride along in localStorage so the
+// event pages and the organizer demo stay in sync. A persistent CTA off the right
+// edge leads back to the main site. Active only on the demo subdomain.
 
 (function () {
   const host = (location.hostname.split(".")[0] || "").toLowerCase();
@@ -68,6 +69,8 @@
   function savedName() { try { return (localStorage.getItem(NAME_STORE) || "").trim(); } catch (e) { return ""; } }
   function restoreColors() { const s = savedTheme(); if (s && s.c1 && s.c2) { if (s.reset) clearColors(); else applyColors(s.c1, s.c2); } }
 
+  function ready(fn) { if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", fn); else fn(); }
+
   // ---- Name personalization. The event scripts fill these from the API after
   // load, so a MutationObserver keeps the visitor's name on top. ----
   const NAME_TARGETS = ["names", "brand", "footName", "eventName"];
@@ -82,6 +85,18 @@
     NAME_TARGETS.forEach((id) => { const el = document.getElementById(id); if (el) obs.observe(el, { childList: true, characterData: true, subtree: true }); });
     applyName(savedName());
   }
+
+  // Persistent CTA back to the main site, on every demo page (guest and dashboard).
+  function buildSideCta() {
+    if (document.querySelector(".demo-cta")) return;
+    const a = document.createElement("a");
+    a.className = "demo-cta";
+    a.href = "https://kamemories.com";
+    a.textContent = "Create your event";
+    a.setAttribute("aria-label", "Go to kamemories to create your event");
+    document.body.appendChild(a);
+  }
+  ready(buildSideCta);
 
   // The organizer dashboard demo (/app) carries the colors and name too, but it
   // renders no bar: the colors come from here, the name from its sandbox backend.
@@ -124,64 +139,48 @@
     { name: "Plum & Rose", c1: "#512840", c2: "#e0a8b0" },
   ];
 
-  function makeSep() { const s = document.createElement("span"); s.style.cssText = "width:1px;height:18px;background:rgba(255,255,255,0.18)"; return s; }
-  function field(w, titleText, placeholder) {
-    const inp = document.createElement("input");
-    inp.type = "text"; inp.spellcheck = false; inp.autocomplete = "off";
-    inp.title = titleText; inp.setAttribute("aria-label", titleText); inp.placeholder = placeholder;
-    Object.assign(inp.style, { width: w, padding: "5px 9px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.07)", color: "#fff", font: "inherit" });
-    return inp;
-  }
-
   const bar = document.createElement("div");
+  bar.className = "demo-bar";
   bar.setAttribute("role", "region");
   bar.setAttribute("aria-label", "Personalize the demo with your names and colors");
-  Object.assign(bar.style, {
-    position: "fixed", top: "0", left: "0", right: "0", zIndex: "200",
-    display: "flex", alignItems: "center", justifyContent: "center", flexWrap: "wrap",
-    gap: "9px 14px", padding: "9px 16px",
-    background: "rgba(8, 12, 20, 0.82)", backdropFilter: "blur(10px)", webkitBackdropFilter: "blur(10px)",
-    borderBottom: "1px solid rgba(255,255,255,0.12)",
-    font: "500 0.8rem 'Hanken Grotesk', system-ui, sans-serif", color: "rgba(255,255,255,0.82)",
-  });
 
   const lab = document.createElement("span");
+  lab.className = "demo-bar-label";
   lab.textContent = "Make it yours";
-  lab.style.letterSpacing = "0.04em"; lab.style.opacity = "0.9";
 
-  // Names
-  const nameInput = field("150px", "Your names", "Your names");
-  nameInput.maxLength = 40;
+  const nameInput = document.createElement("input");
+  nameInput.type = "text"; nameInput.className = "demo-text demo-name"; nameInput.maxLength = 40;
+  nameInput.placeholder = "Your names"; nameInput.title = "Your names"; nameInput.autocomplete = "off";
+  nameInput.setAttribute("aria-label", "Your names for the demo");
   nameInput.addEventListener("input", () => {
     const n = nameInput.value.trim();
     try { localStorage.setItem(NAME_STORE, n); } catch (e) {}
     applyName(n);
   });
 
-  // Preset swatches (one tap, no color theory needed)
-  const chips = document.createElement("span");
-  chips.style.display = "inline-flex"; chips.style.gap = "7px";
+  // Color module: presets, then a swatch (full picker) and hex for each color.
+  const colors = document.createElement("div");
+  colors.className = "demo-colors";
+
+  const presets = document.createElement("span");
+  presets.className = "demo-presets";
   PRESETS.forEach((p) => {
     const b = document.createElement("button");
-    b.type = "button"; b.title = p.name; b.setAttribute("aria-label", p.name);
-    Object.assign(b.style, { width: "22px", height: "22px", borderRadius: "50%", border: "1px solid rgba(255,255,255,0.3)", cursor: "pointer", padding: "0", background: `linear-gradient(135deg, ${p.c1} 0 50%, ${p.c2} 50% 100%)` });
+    b.type = "button"; b.className = "demo-chip"; b.title = p.name; b.setAttribute("aria-label", p.name);
+    b.style.background = `linear-gradient(135deg, ${p.c1} 0 50%, ${p.c2} 50% 100%)`;
     b.addEventListener("click", () => setColors(p.c1, p.c2, p.reset, true));
-    chips.appendChild(b);
+    presets.appendChild(b);
   });
 
-  // Each color offers both: a swatch that opens the full system color picker, and
-  // a hex code you can type or paste. They stay in sync, and either updates the
-  // live theme.
   function colorField(titleText) {
     const wrap = document.createElement("span");
-    wrap.style.cssText = "display:inline-flex;align-items:center;gap:6px";
+    wrap.className = "demo-pair";
     const pick = document.createElement("input");
-    pick.type = "color";
-    pick.title = titleText + ": click to pick";
-    pick.setAttribute("aria-label", titleText + ", color picker");
-    Object.assign(pick.style, { width: "30px", height: "30px", padding: "0", border: "1px solid rgba(255,255,255,0.35)", borderRadius: "50%", background: "none", cursor: "pointer", appearance: "none", webkitAppearance: "none", flex: "0 0 auto" });
-    const inp = field("84px", titleText + " hex code", "#000000");
-    inp.maxLength = 7; inp.style.letterSpacing = "0.03em";
+    pick.type = "color"; pick.className = "demo-swatch";
+    pick.title = titleText + ": click to pick"; pick.setAttribute("aria-label", titleText + ", color picker");
+    const inp = document.createElement("input");
+    inp.type = "text"; inp.className = "demo-text demo-hex"; inp.maxLength = 7; inp.spellcheck = false; inp.autocomplete = "off";
+    inp.title = titleText + " hex code"; inp.setAttribute("aria-label", titleText + " hex code"); inp.placeholder = "#000000";
     wrap.append(pick, inp);
     return { wrap: wrap, pick: pick, input: inp };
   }
@@ -194,15 +193,20 @@
   two.addEventListener("input", () => { const v = normHex(two.value); if (v) accPick.value = expand(v); setColors(last1, v || last2, false, false); });
 
   const reset = document.createElement("button");
-  reset.type = "button"; reset.textContent = "Reset";
-  Object.assign(reset.style, { background: "none", border: "0", color: "rgba(255,255,255,0.6)", font: "inherit", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "3px" });
+  reset.type = "button"; reset.className = "demo-reset"; reset.textContent = "Reset";
   reset.addEventListener("click", () => setColors(DEF1, DEF2, true, true));
 
-  const admin = document.createElement("a");
-  admin.href = "/app"; admin.textContent = "Organizer demo"; admin.title = "See the dashboard the host uses";
-  Object.assign(admin.style, { color: "rgba(255,255,255,0.92)", font: "inherit", fontWeight: "600", textDecoration: "none", letterSpacing: "0.02em", whiteSpace: "nowrap" });
+  const sep = document.createElement("span"); sep.className = "demo-sep";
+  colors.append(presets, sep, baseF.wrap, accF.wrap, reset);
 
-  bar.append(lab, nameInput, makeSep(), chips, baseF.wrap, accF.wrap, reset, makeSep(), admin);
+  const sep2 = document.createElement("span"); sep2.className = "demo-sep";
+
+  const flip = document.createElement("a");
+  flip.className = "demo-flip"; flip.href = "/app";
+  flip.textContent = "Click to see Organizer View";
+  flip.title = "See the dashboard the host uses";
+
+  bar.append(lab, nameInput, colors, sep2, flip);
 
   function fit() { document.body.style.paddingTop = bar.offsetHeight + "px"; }
 
@@ -210,16 +214,13 @@
     document.body.appendChild(bar);
     fit();
     window.addEventListener("resize", fit, { passive: true });
-    // Restore previous color choice (e.g. navigating landing -> gallery).
     const st = savedTheme();
     if (st && st.c1 && st.c2) setColors(st.c1, st.c2, !!st.reset, true);
     else { one.value = DEF1; two.value = DEF2; basePick.value = expand(DEF1); accPick.value = expand(DEF2); }
-    // Restore previous name and keep it applied over the API fill.
     const sn = savedName();
     if (sn) nameInput.value = sn;
     watchName();
   }
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mount);
-  else mount();
+  ready(mount);
 })();

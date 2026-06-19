@@ -152,3 +152,9 @@ if (a && b && SOURCES.length) {
     draw();
   }
 })();
+
+// The footer logo glides back to the top of the page.
+(function () {
+  const top = document.querySelector(".cine-foot-top");
+  if (top) top.addEventListener("click", (e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); });
+})();

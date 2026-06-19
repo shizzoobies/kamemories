@@ -662,8 +662,52 @@ body.cinema .veil {
 
 /* Organizer demo ribbon (sits under the dashboard topbar on the demo subdomain). */
 .demo-ribbon { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 18px; padding: 10px 18px; background: linear-gradient(90deg, rgba(214, 178, 110, 0.14), rgba(150, 182, 232, 0.12)); border-bottom: 1px solid var(--line-soft); font-size: 0.82rem; color: var(--muted); text-align: center; }
-.demo-ribbon a { color: var(--silver); text-decoration: none; font-weight: 600; border-bottom: 1px solid transparent; }
-.demo-ribbon a:hover { border-bottom-color: var(--silver); }
+.demo-ribbon a { color: #0a1322; background: linear-gradient(180deg, #ffffff, #e7ecf3); font-weight: 700; text-decoration: none; padding: 7px 14px; border-radius: 999px; box-shadow: 0 3px 12px rgba(0, 0, 0, 0.3); transition: transform 0.18s ease, box-shadow 0.18s ease; }
+.demo-ribbon a:hover { transform: translateY(-1px); box-shadow: 0 7px 16px rgba(0, 0, 0, 0.42); }
+
+/* ===== Demo personalization bar (demo subdomain only) =====================
+   A deliberately premium control rail: clearly its own surface, separate from
+   the page, but designed rather than an afterthought. Built by demo-theme.js. */
+.demo-bar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+  display: flex; align-items: center; justify-content: center; flex-wrap: wrap;
+  gap: 10px 16px; padding: 11px 20px;
+  background: linear-gradient(180deg, rgba(13, 18, 30, 0.94), rgba(9, 13, 21, 0.9));
+  -webkit-backdrop-filter: blur(16px) saturate(1.1); backdrop-filter: blur(16px) saturate(1.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.4);
+  font: 500 0.82rem "Hanken Grotesk", system-ui, sans-serif; color: rgba(245, 241, 232, 0.84);
+}
+.demo-bar::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; background: linear-gradient(90deg, transparent, rgba(214, 178, 110, 0.55) 35%, rgba(150, 182, 232, 0.55) 65%, transparent); }
+.demo-bar-label { font-family: "Playfair Display", Georgia, serif; font-style: italic; font-size: 1.06rem; color: #fff; opacity: 0.95; }
+.demo-text { padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.16); background: rgba(255, 255, 255, 0.06); color: #fff; font: inherit; }
+.demo-text::placeholder { color: rgba(245, 241, 232, 0.48); }
+.demo-text:focus { outline: none; border-color: rgba(255, 255, 255, 0.42); background: rgba(255, 255, 255, 0.1); }
+.demo-name { width: 152px; }
+.demo-hex { width: 92px; letter-spacing: 0.04em; }
+.demo-colors { display: inline-flex; align-items: center; flex-wrap: wrap; justify-content: center; gap: 9px 12px; padding: 6px 13px; border-radius: 16px; background: rgba(255, 255, 255, 0.045); border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05); }
+.demo-presets { display: inline-flex; gap: 8px; }
+.demo-chip { width: 24px; height: 24px; border: 0; padding: 0; border-radius: 50%; cursor: pointer; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25), 0 2px 6px rgba(0, 0, 0, 0.32); transition: transform 0.18s ease, box-shadow 0.18s ease; }
+.demo-chip:hover { transform: translateY(-2px) scale(1.08); box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.6), 0 5px 13px rgba(0, 0, 0, 0.42); }
+.demo-pair { display: inline-flex; align-items: center; gap: 7px; }
+.demo-swatch { -webkit-appearance: none; -moz-appearance: none; appearance: none; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.72), 0 2px 8px rgba(0, 0, 0, 0.36); transition: transform 0.18s ease, box-shadow 0.18s ease; }
+.demo-swatch:hover { transform: scale(1.1); box-shadow: 0 0 0 2px #fff, 0 4px 12px rgba(0, 0, 0, 0.45); }
+.demo-swatch::-webkit-color-swatch-wrapper { padding: 0; }
+.demo-swatch::-webkit-color-swatch { border: 0; border-radius: 50%; }
+.demo-swatch::-moz-color-swatch { border: 0; border-radius: 50%; }
+.demo-sep { width: 1px; height: 20px; background: rgba(255, 255, 255, 0.16); }
+.demo-reset { background: none; border: 0; color: rgba(245, 241, 232, 0.58); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.demo-reset:hover { color: #fff; }
+.demo-flip { color: #0a1322; background: linear-gradient(180deg, #ffffff, #e7ecf3); font: inherit; font-weight: 700; letter-spacing: 0.01em; text-decoration: none; white-space: nowrap; padding: 8px 15px; border-radius: 999px; box-shadow: 0 3px 13px rgba(0, 0, 0, 0.32); transition: transform 0.18s ease, box-shadow 0.18s ease; }
+.demo-flip:hover { transform: translateY(-1px); box-shadow: 0 7px 18px rgba(0, 0, 0, 0.44); }
+
+/* Persistent CTA off the right edge of every demo page, back to the main site. */
+.demo-cta { position: fixed; right: 0; top: 60%; transform: translateY(-50%); z-index: 35; writing-mode: vertical-rl; text-orientation: mixed; background: var(--sheen); color: #0a1322; font: 700 0.8rem "Hanken Grotesk", system-ui, sans-serif; letter-spacing: 0.12em; padding: 18px 10px; border-radius: 14px 0 0 14px; text-decoration: none; box-shadow: -3px 10px 28px rgba(0, 0, 0, 0.46); transition: transform 0.25s ease; }
+.demo-cta:hover { transform: translateY(-50%) translateX(-4px); }
+
+/* Footer logo links to the top of the main page. */
+.cine-foot a { display: inline-flex; }
+.cine-foot a:hover .cine-foot-logo { opacity: 1; }
 
 /* Orchestrated load reveal */
 .reveal { opacity: 0; transform: translateY(18px); animation: cine-rise 1s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; animation-delay: calc(var(--d, 0) * 0.12s + 0.15s); }

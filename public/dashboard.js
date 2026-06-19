@@ -707,11 +707,8 @@ function injectDemoBanner() {
   msg.textContent = "Organizer demo. Explore freely. Nothing you change here is saved.";
   const guest = document.createElement("a");
   guest.href = "/";
-  guest.textContent = "Guest view";
-  const make = document.createElement("a");
-  make.href = "https://kamemories.com/login";
-  make.textContent = "Create your own";
-  bar.append(msg, guest, make);
+  guest.textContent = "Click to see Guest view";
+  bar.append(msg, guest);
   const header = document.querySelector(".topbar");
   if (header && header.parentNode) header.parentNode.insertBefore(bar, header.nextSibling);
   else document.body.insertBefore(bar, document.body.firstChild);
