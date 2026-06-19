@@ -220,3 +220,13 @@ if (a && b && SOURCES.length) {
     }
   });
 })();
+
+// Top nav: turns solid as you scroll so it stays readable and always reachable.
+(function () {
+  const nav = document.querySelector(".cine-nav");
+  if (!nav) return;
+  let ticking = false;
+  const update = () => { nav.classList.toggle("scrolled", window.scrollY > 24); ticking = false; };
+  window.addEventListener("scroll", () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } }, { passive: true });
+  update();
+})();

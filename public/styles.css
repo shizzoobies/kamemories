@@ -551,11 +551,23 @@ body.cinema .veil {
 
 /* Nav */
 .cine-nav {
-  position: absolute; top: 0; left: 0; right: 0; z-index: 3;
+  position: fixed; top: 0; left: 0; right: 0; z-index: 40;
   display: flex; align-items: center; justify-content: space-between;
-  padding: clamp(20px, 3.4vh, 34px) clamp(22px, 5vw, 72px);
+  padding: clamp(14px, 2.6vh, 26px) clamp(22px, 5vw, 72px);
+  border-bottom: 1px solid transparent;
+  transition: background 0.35s ease, padding 0.3s ease, border-color 0.35s ease, box-shadow 0.35s ease;
 }
-.cine-brand { font-family: var(--font-cormorant); font-weight: 500; font-size: 1.5rem; letter-spacing: 0.01em; color: var(--cine-ink); text-decoration: none; }
+.cine-nav.scrolled {
+  background: rgba(7, 11, 20, 0.96);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  border-bottom-color: var(--cine-line);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  padding-top: clamp(9px, 1.6vh, 14px); padding-bottom: clamp(9px, 1.6vh, 14px);
+}
+.cine-brand { display: inline-flex; align-items: center; font-family: var(--font-cormorant); font-weight: 500; font-size: 1.5rem; letter-spacing: 0.01em; color: var(--cine-ink); text-decoration: none; }
+.cine-logo { height: 40px; width: auto; display: block; transition: height 0.3s ease; }
+.cine-nav.scrolled .cine-logo { height: 34px; }
+.cine-section { scroll-margin-top: 84px; }
 .cine-links { display: flex; align-items: center; gap: clamp(18px, 3vw, 40px); }
 .cine-links a { font-size: 0.74rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--cine-dim); text-decoration: none; transition: color 0.3s; }
 .cine-links a:hover { color: var(--cine-ink); }
@@ -829,6 +841,11 @@ body.cinema .veil {
 .cine-faq-item[open] .cine-faq-q::after { transform: translateY(-50%) rotate(45deg); color: var(--cine-ink); }
 .cine-faq-a { padding: 0 46px 24px 0; }
 .cine-faq-a p { margin: 0; color: var(--cine-dim); line-height: 1.7; font-size: 1.02rem; max-width: 64ch; }
+
+/* Teacher and veteran discount note under the pricing header */
+.cine-price-note { margin: 12px auto 0; font-size: 0.95rem; color: var(--cine-ink); letter-spacing: 0.02em; }
+.cine-price-note a { color: var(--cine-ink); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.cine-price-note a:hover { opacity: 0.8; }
 .cine-dev { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--cine-line); }
 .cine-dev a { color: var(--cine-dim); word-break: break-all; font-size: 0.82rem; }
 

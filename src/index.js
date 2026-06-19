@@ -1060,6 +1060,7 @@ async function handleCheckout(request, env, url, id) {
   try {
     const session = await stripeRequest(env, "checkout/sessions", {
       mode: "payment",
+      allow_promotion_codes: true,
       success_url: `${base}/app?paid=${e.id}#/e/${e.id}`,
       cancel_url: `${base}/app#/e/${e.id}`,
       client_reference_id: e.id,
