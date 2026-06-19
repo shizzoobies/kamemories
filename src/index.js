@@ -277,6 +277,7 @@ function ownerEventShape(env, e) {
     status: e.status,
     plan: e.plan || null,
     paid_at: e.paid_at || null,
+    reviewed_at: e.reviewed_at || null,
     created_at: e.created_at,
     host,
     url: `https://${host}`,
@@ -565,11 +566,12 @@ async function adminOverview(request, env) {
     organizer_email: e.organizer_email, total: e.total, pending: e.pending, approved: e.approved_count,
   }));
   const photos = clients.reduce((n, c) => n + (c.photos || 0), 0);
+  const newBookings = events.filter((e) => e.paid_at && !e.reviewed_at).length;
   return json({
     me: gate.org,
     clients: clients,
     events: events,
-    stats: { clients: clients.length, events: events.length, photos: photos },
+    stats: { clients: clients.length, events: events.length, photos: photos, newBookings: newBookings },
     billing: billingOn(env),
     assistant: !!env.ANTHROPIC_API_KEY,
   });
@@ -614,9 +616,9 @@ async function adminCreateEvent(request, env) {
   const status = ["active", "draft", "archived"].includes(body.status) ? body.status : "active";
   const paidAt = plan && status === "active" ? now : null;
   await env.DB.prepare(
-    `INSERT INTO events (id, organizer_id, slug, name, tagline, event_date, venue, theme, daily_limit, event_tz, rollover_h, status, plan, paid_at, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'midnight-pearl', ?, 'America/New_York', 2, ?, ?, ?, ?)`
-  ).bind(id, org.id, slug, name, tagline, eventDate, venue, dailyLimit, status, plan, paidAt, now).run();
+    `INSERT INTO events (id, organizer_id, slug, name, tagline, event_date, venue, theme, daily_limit, event_tz, rollover_h, status, plan, paid_at, reviewed_at, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'midnight-pearl', ?, 'America/New_York', 2, ?, ?, ?, ?, ?)`
+  ).bind(id, org.id, slug, name, tagline, eventDate, venue, dailyLimit, status, plan, paidAt, now, now).run();
   const event = await eventById(env, id);
   return json({ ok: true, event: Object.assign({}, ownerEventShape(env, event), { organizer_email: email }) }, 201);
 }
@@ -644,9 +646,10 @@ async function adminUpdateEvent(request, env, id) {
   const eventDate = body.event_date != null ? (body.event_date.toString().slice(0, 80) || null) : e.event_date;
   const venue = body.venue != null ? (body.venue.toString().slice(0, 120) || null) : e.venue;
   const paidAt = plan && status === "active" ? (e.paid_at || Date.now()) : e.paid_at;
+  const reviewedAt = body.reviewed ? (e.reviewed_at || Date.now()) : e.reviewed_at;
   await env.DB.prepare(
-    "UPDATE events SET name = ?, slug = ?, status = ?, plan = ?, daily_limit = ?, paid_at = ?, tagline = ?, event_date = ?, venue = ? WHERE id = ?"
-  ).bind(name, slug, status, plan, dailyLimit, paidAt, tagline, eventDate, venue, id).run();
+    "UPDATE events SET name = ?, slug = ?, status = ?, plan = ?, daily_limit = ?, paid_at = ?, tagline = ?, event_date = ?, venue = ?, reviewed_at = ? WHERE id = ?"
+  ).bind(name, slug, status, plan, dailyLimit, paidAt, tagline, eventDate, venue, reviewedAt, id).run();
   const updated = await eventById(env, id);
   return json({ ok: true, event: Object.assign({}, ownerEventShape(env, updated)) });
 }

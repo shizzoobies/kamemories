@@ -90,6 +90,7 @@ function showList() {
   currentId = null;
   $("eventDetail").style.display = "none";
   $("console").style.display = "block";
+  renderNewBookings();
   renderEvents();
   window.scrollTo(0, 0);
 }
@@ -98,6 +99,19 @@ function eventMatches(e) {
   if (!eventsFilter) return true;
   const t = eventsFilter.toLowerCase();
   return (e.name || "").toLowerCase().includes(t) || (e.slug || "").toLowerCase().includes(t) || (e.organizer_email || "").toLowerCase().includes(t);
+}
+
+function isNewBooking(e) { return !!(e && e.paid_at && !e.reviewed_at); }
+
+function renderNewBookings() {
+  const wrap = $("newBookings");
+  const rows = data.events.filter(isNewBooking);
+  if (!rows.length) { wrap.style.display = "none"; return; }
+  wrap.style.display = "block";
+  $("newbkCount").textContent = rows.length + (rows.length === 1 ? " booking" : " bookings");
+  const list = $("newbkList");
+  list.innerHTML = "";
+  for (const e of rows) list.appendChild(eventRow(e));
 }
 
 function renderEvents() {
@@ -115,7 +129,8 @@ function eventRow(e) {
   row.tabIndex = 0;
   row.setAttribute("role", "button");
   const plan = e.plan ? PLAN_LABEL[e.plan] : "No plan";
-  row.innerHTML =
+  const newPill = isNewBooking(e) ? '<span class="newbk-pill">New</span>' : '';
+  row.innerHTML = newPill +
     '<span class="admin-row-name">' + esc(e.name) + '</span>' +
     '<span class="ev-badge ' + esc(e.status) + '">' + esc(e.status) + '</span>' +
     '<span class="admin-row-host">' + esc(e.host) + '</span>' +
@@ -185,6 +200,7 @@ function fillDetail(e) {
   $("dInTagline").value = e.tagline || "";
   $("dInDate").value = e.event_date || "";
   $("dInVenue").value = e.venue || "";
+  $("dNewBanner").style.display = isNewBooking(e) ? "flex" : "none";
   setMsg("detailMsg", "", false);
 }
 
@@ -195,6 +211,27 @@ $("dCopy").addEventListener("click", async () => {
   if (!e) return;
   try { await navigator.clipboard.writeText(e.capture_url); toast("Capture link copied."); }
   catch (err) { toast("Could not copy.", true); }
+});
+
+$("dConfirm").addEventListener("click", async () => {
+  const e = data.events.find((x) => x.id === currentId);
+  if (!e) return;
+  const btn = $("dConfirm");
+  btn.disabled = true;
+  try {
+    const r = await fetch("/api/admin/events/" + encodeURIComponent(currentId), {
+      method: "PATCH", credentials: "same-origin",
+      headers: { "content-type": "application/json" }, body: JSON.stringify({ reviewed: true }),
+    });
+    const d = await r.json();
+    if (!r.ok) { toast(d.message || "Could not confirm.", true); return; }
+    Object.assign(e, d.event);
+    $("dNewBanner").style.display = "none";
+    renderNewBookings();
+    renderEvents();
+    toast("Booking confirmed.");
+  } catch (err) { toast("No connection.", true); }
+  finally { btn.disabled = false; }
 });
 
 $("detailForm").addEventListener("submit", async (ev) => {

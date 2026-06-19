@@ -33,6 +33,12 @@
   </div>
   <div class="cur-stats" id="stats"></div>
 
+  <div id="newBookings" class="newbk" style="display:none">
+    <div class="admin-colhead"><h2 class="admin-h">New bookings</h2><span class="admin-count" id="newbkCount"></span></div>
+    <p class="admin-sub">Just booked and paid, waiting for you to confirm.</p>
+    <div id="newbkList" class="admin-list"></div>
+  </div>
+
   <div class="admin-colhead"><h2 class="admin-h">Events</h2><span class="admin-count" id="eventsCount"></span></div>
   <input id="eventsSearch" class="cur-input admin-search" type="search" placeholder="Search by event, address, or client" aria-label="Search events" />
   <div id="eventsList" class="admin-list"></div>
@@ -57,6 +63,11 @@
   </div>
 
   <div class="cur-stats" id="dStats"></div>
+
+  <div class="newbk-banner" id="dNewBanner" style="display:none">
+    <span>New booking. Review the details below, then confirm.</span>
+    <button class="btn primary" id="dConfirm" type="button">Confirm booking</button>
+  </div>
 
   <form id="detailForm" class="form-card">
     <div class="form-grid">

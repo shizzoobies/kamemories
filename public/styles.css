@@ -730,6 +730,11 @@ body.cinema .veil {
 .admin-client { background: var(--surface); border: 1px solid var(--line-soft); border-radius: var(--radius); padding: 12px 14px; }
 .admin-client-email { color: var(--ink); font-weight: 600; font-size: 0.9rem; word-break: break-word; }
 .admin-client-meta { color: var(--muted); font-size: 0.78rem; margin-top: 4px; }
+.newbk { margin-bottom: 30px; }
+.newbk .admin-colhead { margin-bottom: 6px; }
+.newbk .admin-sub { margin-bottom: 12px; }
+.newbk-pill { font-size: 0.62rem; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; color: #0a1626; background: var(--silver); padding: 3px 8px; border-radius: 999px; }
+.newbk-banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; background: linear-gradient(90deg, rgba(214, 178, 110, 0.16), rgba(150, 182, 232, 0.12)); border: 1px solid var(--silver); border-radius: var(--radius); padding: 14px 16px; margin: 0 0 18px; color: var(--ink); font-size: 0.92rem; }
 .asst-fab { position: fixed; right: 22px; bottom: 22px; z-index: 60; width: 56px; height: 56px; border: 0; border-radius: 50%; background: var(--sheen); color: #0a1322; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45); transition: transform 0.18s ease, box-shadow 0.18s ease; }
 .asst-fab:hover { transform: translateY(-2px); box-shadow: 0 14px 38px rgba(0, 0, 0, 0.55); }
 .asst-fab svg { width: 26px; height: 26px; }

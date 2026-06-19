@@ -49,7 +49,8 @@ CREATE TABLE IF NOT EXISTS events (
   plan         TEXT,                   -- billing tier (intimate | signature | grand), set on payment
   paid_at      INTEGER,                -- epoch ms of the one-time payment
   stripe_session TEXT,                 -- Checkout Session id that paid for this event
-  created_at   INTEGER NOT NULL
+  created_at   INTEGER NOT NULL,
+  reviewed_at  INTEGER                 -- epoch ms an operator reviewed this booking; NULL = a new booking awaiting confirmation
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_events_slug ON events (slug);
 CREATE INDEX IF NOT EXISTS idx_events_org ON events (organizer_id, created_at DESC);
