@@ -30,8 +30,12 @@ async function loadEvent() {
     setText("brand", event.name);
     setText("names", event.name);
     setText("footName", event.name);
+    const cinema = !!(event.features && event.features.video);
     const mono = F("monogram");
-    if (mono) mono.textContent = initials(event.name);
+    if (mono) {
+      if (cinema) mono.remove();
+      else mono.textContent = initials(event.name);
+    }
     if (event.tagline) setText("eyebrow", event.tagline);
     if (event.event_date) setText("date", event.event_date);
     if (event.venue) setText("venue", event.venue);
@@ -40,7 +44,143 @@ async function loadEvent() {
       const bits = [event.event_date, event.venue].filter(Boolean);
       footMeta.textContent = bits.join("  .  ");
     }
+    if (cinema) startCinema();
   } catch {}
+}
+
+// Cinematic landing backdrop (Signature and Grand). A slow, heavily veiled reel
+// of wedding footage behind the page that plays each clip through, crossfades to
+// the next, and freezes the moment the visitor scrolls. Kept dependency free and
+// self contained here, mirroring the marketing home's backdrop.
+function startCinema() {
+  const SOURCES = [
+    "/videos/v1-beach.mp4",
+    "/videos/v2-ceremony.mp4",
+    "/videos/v3-vows.mp4",
+    "/videos/v4-cake.mp4",
+    "/videos/v5-toss.mp4",
+  ];
+  const reduce =
+    window.matchMedia &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  document.body.classList.add("cinema");
+  const stage = document.createElement("div");
+  stage.className = "bg-stage";
+  stage.setAttribute("aria-hidden", "true");
+  const a = document.createElement("video");
+  const b = document.createElement("video");
+  [a, b].forEach((v) => {
+    v.className = "bg-video";
+    v.muted = true;
+    v.defaultMuted = true;
+    v.playsInline = true;
+    v.setAttribute("playsinline", "");
+    v.setAttribute("muted", "");
+    v.preload = "auto";
+    stage.appendChild(v);
+  });
+  const veil = document.createElement("div");
+  veil.className = "veil";
+  veil.setAttribute("aria-hidden", "true");
+  const grain = document.createElement("div");
+  grain.className = "grain";
+  grain.setAttribute("aria-hidden", "true");
+  document.body.prepend(grain);
+  document.body.prepend(veil);
+  document.body.prepend(stage);
+
+  const FADE_MS = 3000;
+  const TAIL = 3.2; // begin the crossfade this many seconds before a clip ends
+  const MIN_HOLD = 2.5;
+  let idx = 0;
+  let front = a;
+  let back = b;
+  let busy = false;
+  let frozen = false;
+
+  const play = (v) => {
+    v.muted = true;
+    const p = v.play();
+    if (p && p.catch) p.catch(() => {});
+  };
+  const load = (v, src) => {
+    v.loop = false;
+    if (v.getAttribute("src") !== src) {
+      v.setAttribute("src", src);
+      v.load();
+    }
+  };
+
+  load(front, SOURCES[0]);
+  front.addEventListener(
+    "loadeddata",
+    () => {
+      front.classList.add("show");
+      if (!frozen && !reduce) play(front);
+    },
+    { once: true }
+  );
+  load(back, SOURCES[1 % SOURCES.length]);
+
+  function advance() {
+    if (busy || frozen || reduce) return;
+    busy = true;
+    const next = (idx + 1) % SOURCES.length;
+    load(back, SOURCES[next]);
+    const go = () => {
+      try { back.currentTime = 0; } catch (_) {}
+      if (!frozen) play(back);
+      back.classList.add("show");
+      front.classList.remove("show");
+      setTimeout(() => {
+        front.pause();
+        const t = front; front = back; back = t;
+        idx = next;
+        busy = false;
+        load(back, SOURCES[(idx + 1) % SOURCES.length]);
+      }, FADE_MS);
+    };
+    if (back.readyState >= 3) go();
+    else back.addEventListener("canplay", go, { once: true });
+  }
+
+  const onTime = (e) => {
+    if (busy || frozen || reduce || e.target !== front) return;
+    const d = front.duration;
+    if (d && isFinite(d) && front.currentTime >= Math.max(MIN_HOLD, d - TAIL)) advance();
+  };
+  const onEnd = (e) => {
+    if (!busy && !frozen && !reduce && e.target === front) advance();
+  };
+  a.addEventListener("timeupdate", onTime);
+  b.addEventListener("timeupdate", onTime);
+  a.addEventListener("ended", onEnd);
+  b.addEventListener("ended", onEnd);
+
+  // Freeze the reel on the current frame the moment they scroll; resume only
+  // when they return to the very top.
+  let ticking = false;
+  window.addEventListener(
+    "scroll",
+    () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        const atTop = window.scrollY <= 8;
+        if (!atTop && !frozen) {
+          frozen = true;
+          front.pause();
+          back.pause();
+        } else if (atTop && frozen) {
+          frozen = false;
+          if (!reduce) play(front);
+        }
+        ticking = false;
+      });
+    },
+    { passive: true }
+  );
 }
 
 // ---- Featured strip ----

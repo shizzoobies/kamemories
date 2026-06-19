@@ -537,6 +537,18 @@ body.cine { background: transparent; color: var(--cine-ink); overflow-x: hidden;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
+/* Event landing cinematic backdrop (Signature and Grand). Reuses the fixed video
+   stage from the marketing home, but darker and more uniformly veiled so it reads
+   as a subtle motion behind the page rather than a hero reel. event.js adds
+   .cinema and the layers when the event's plan includes the video landing. */
+body.cinema { background: transparent; }
+body.cinema .bg-video { filter: brightness(0.58) saturate(1.08) contrast(1.03); }
+body.cinema .veil {
+  background:
+    linear-gradient(180deg, rgba(7, 11, 20, 0.6) 0%, rgba(7, 11, 20, 0) 150px),
+    linear-gradient(180deg, rgba(7, 11, 20, 0.74) 0%, rgba(7, 11, 20, 0.66) 32%, rgba(7, 11, 20, 0.72) 62%, rgba(7, 11, 20, 0.9) 100%);
+}
+
 /* Nav */
 .cine-nav {
   position: absolute; top: 0; left: 0; right: 0; z-index: 3;
