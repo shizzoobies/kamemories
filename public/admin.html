@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0a1626" />
+<title>Operator console . kamemories</title>
+<meta name="robots" content="noindex" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/admin">ka<span>memories</span> &middot; operator</a>
+  <nav id="who"></nav>
+</header>
+
+<div id="loading" class="dash-loading">Loading...</div>
+
+<div id="denied" class="empty" style="display:none">
+  This area is for kamemories operators only.
+  <a href="/app">Go to your dashboard</a>.
+</div>
+
+<section class="section dash" id="console" style="display:none">
+  <div class="dash-head">
+    <h1 class="gallery-title display">Operator console</h1>
+    <button class="btn primary" id="newBtn" type="button">New client event</button>
+  </div>
+  <div class="cur-stats" id="stats"></div>
+
+  <div class="admin-grid">
+    <div class="admin-col">
+      <div class="admin-colhead"><h2 class="admin-h">Events</h2><span class="admin-count" id="eventsCount"></span></div>
+      <input id="eventsSearch" class="cur-input admin-search" type="search" placeholder="Search events or clients" aria-label="Search events" />
+      <div id="eventsList" class="admin-list"></div>
+    </div>
+    <div class="admin-col">
+      <div class="admin-colhead"><h2 class="admin-h">Clients</h2><span class="admin-count" id="clientsCount"></span></div>
+      <div id="clientsList" class="admin-list"></div>
+    </div>
+  </div>
+</section>
+
+<section class="section dash" id="assistantSection" style="display:none">
+  <div class="admin-colhead"><h2 class="admin-h">Assistant</h2><span class="admin-tag">Opus</span></div>
+  <p class="admin-sub" id="asstNote">Ask about your clients, draft a note, or plan a launch. It reads your live data and never changes anything.</p>
+  <div class="asst-log" id="asstLog"></div>
+  <form class="asst-form" id="asstForm">
+    <input id="asstInput" class="cur-input" type="text" placeholder="Which events still have photos pending?" autocomplete="off" />
+    <button class="btn primary" id="asstSend" type="submit">Ask</button>
+  </form>
+</section>
+
+<!-- New client event -->
+<div class="modal" id="createModal">
+  <div class="modal-card">
+    <button class="lb-close" id="createClose" aria-label="Close">&times;</button>
+    <h2 class="display" style="margin:0 0 4px">New client event</h2>
+    <p class="auth-sub" style="margin-top:0">Set a client up with their own subdomain. They can sign in with their email to manage it.</p>
+    <form id="createForm">
+      <label class="field"><span>Client email</span><input id="cEmail" type="email" required placeholder="client@example.com" autocomplete="off" /></label>
+      <label class="field"><span>Event name</span><input id="cName" type="text" maxlength="80" required placeholder="Tristin &amp; Cory" /></label>
+      <label class="field"><span>Address</span>
+        <div class="slug-row">
+          <input id="cSlug" type="text" maxlength="40" placeholder="tristin-cory" />
+          <span class="slug-suffix">.kamemories.com</span>
+        </div>
+      </label>
+      <div class="form-grid">
+        <label class="field"><span>Plan</span>
+          <select id="cPlan">
+            <option value="">None yet</option>
+            <option value="intimate">Intimate</option>
+            <option value="signature">Signature</option>
+            <option value="grand">Grand</option>
+          </select>
+        </label>
+        <label class="field"><span>Status</span>
+          <select id="cStatus">
+            <option value="active">Active (live)</option>
+            <option value="draft">Draft (hidden)</option>
+          </select>
+        </label>
+      </div>
+      <p id="createMsg" class="auth-msg"></p>
+      <button class="btn primary" id="createSubmit" type="submit" style="margin-top:6px">Create event</button>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="/admin.js"></script>
+</body>
+</html>

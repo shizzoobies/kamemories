@@ -524,6 +524,193 @@ async function eventDelete(request, env, id) {
 }
 
 // ---------------------------------------------------------------------------
+// Control plane: owner console. Gated to the operator emails in ADMIN_EMAILS so
+// only we can see every client and every event and set things up for them.
+// ---------------------------------------------------------------------------
+
+function adminEmails(env) {
+  return new Set((env.ADMIN_EMAILS || "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean));
+}
+function isAdmin(org, env) {
+  return !!org && adminEmails(env).has((org.email || "").toLowerCase());
+}
+// Resolve the signed-in operator, or an error response to return as-is.
+async function requireAdmin(request, env) {
+  const org = await getOrganizer(request, env);
+  if (!org) return { error: json({ error: "auth", message: "Sign in required." }, 401) };
+  if (!isAdmin(org, env)) return { error: json({ error: "forbidden", message: "Not authorized." }, 403) };
+  return { org };
+}
+
+async function adminOverview(request, env) {
+  const gate = await requireAdmin(request, env);
+  if (gate.error) return gate.error;
+
+  const clientsQ = await env.DB.prepare(
+    `SELECT o.id, o.email, o.name, o.created_at,
+       (SELECT COUNT(*) FROM events e WHERE e.organizer_id = o.id) AS events,
+       (SELECT COUNT(*) FROM uploads u JOIN events e ON e.id = u.event_id WHERE e.organizer_id = o.id) AS photos
+     FROM organizers o ORDER BY o.created_at DESC`
+  ).all();
+  const eventsQ = await env.DB.prepare(
+    `SELECT e.*, o.email AS organizer_email,
+       (SELECT COUNT(*) FROM uploads u WHERE u.event_id = e.id) AS total,
+       (SELECT COUNT(*) FROM uploads u WHERE u.event_id = e.id AND u.approved = 0) AS pending,
+       (SELECT COUNT(*) FROM uploads u WHERE u.event_id = e.id AND u.approved = 1) AS approved_count
+     FROM events e JOIN organizers o ON o.id = e.organizer_id ORDER BY e.created_at DESC`
+  ).all();
+
+  const clients = clientsQ.results || [];
+  const events = (eventsQ.results || []).map((e) => Object.assign({}, ownerEventShape(env, e), {
+    organizer_email: e.organizer_email, total: e.total, pending: e.pending, approved: e.approved_count,
+  }));
+  const photos = clients.reduce((n, c) => n + (c.photos || 0), 0);
+  return json({
+    me: gate.org,
+    clients: clients,
+    events: events,
+    stats: { clients: clients.length, events: events.length, photos: photos },
+    billing: billingOn(env),
+    assistant: !!env.ANTHROPIC_API_KEY,
+  });
+}
+
+async function adminCreateEvent(request, env) {
+  const gate = await requireAdmin(request, env);
+  if (gate.error) return gate.error;
+  let body;
+  try { body = await request.json(); } catch { return json({ error: "bad", message: "Bad request." }, 400); }
+
+  const email = (body.email || "").toString().trim().toLowerCase();
+  if (!isEmail(email)) return json({ error: "email", message: "Enter the client email." }, 400);
+  const name = (body.name || "").toString().trim().slice(0, 80);
+  if (!name) return json({ error: "name", message: "Give the event a name." }, 400);
+
+  // Upsert the client organizer so the event has an owner who can sign in later.
+  let org = await env.DB.prepare("SELECT id FROM organizers WHERE email = ?").bind(email).first();
+  if (!org) {
+    const oid = crypto.randomUUID();
+    await env.DB.prepare("INSERT INTO organizers (id, email, created_at) VALUES (?, ?, ?)").bind(oid, email, Date.now()).run();
+    org = { id: oid };
+  }
+
+  const typedSlug = (body.slug || "").toString().trim().toLowerCase();
+  let slug = typedSlug || slugify(name);
+  if (!validSlug(slug)) return json({ error: "slug", message: "Use 2 to 40 letters, numbers, and hyphens." }, 400);
+  if (reservedSet(env).has(slug)) return json({ error: "slug_reserved", message: "That address is reserved." }, 400);
+  const existing = await env.DB.prepare("SELECT id FROM events WHERE slug = ?").bind(slug).first();
+  if (existing) {
+    if (typedSlug) return json({ error: "slug_taken", message: "That address is taken." }, 409);
+    slug = `${slug}-${randomToken().slice(0, 4)}`;
+  }
+
+  const id = crypto.randomUUID();
+  const now = Date.now();
+  const tagline = (body.tagline || "").toString().slice(0, 120) || null;
+  const eventDate = (body.event_date || "").toString().slice(0, 80) || null;
+  const venue = (body.venue || "").toString().slice(0, 120) || null;
+  const dailyLimit = clampInt(body.daily_limit, 1, 1000, 10);
+  const plan = PLANS[body.plan] ? body.plan : null;
+  const status = ["active", "draft", "archived"].includes(body.status) ? body.status : "active";
+  const paidAt = plan && status === "active" ? now : null;
+  await env.DB.prepare(
+    `INSERT INTO events (id, organizer_id, slug, name, tagline, event_date, venue, theme, daily_limit, event_tz, rollover_h, status, plan, paid_at, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'midnight-pearl', ?, 'America/New_York', 2, ?, ?, ?, ?)`
+  ).bind(id, org.id, slug, name, tagline, eventDate, venue, dailyLimit, status, plan, paidAt, now).run();
+  const event = await eventById(env, id);
+  return json({ ok: true, event: Object.assign({}, ownerEventShape(env, event), { organizer_email: email }) }, 201);
+}
+
+async function adminUpdateEvent(request, env, id) {
+  const gate = await requireAdmin(request, env);
+  if (gate.error) return gate.error;
+  const e = await eventById(env, id);
+  if (!e) return json({ error: "notfound", message: "Event not found." }, 404);
+  let body; try { body = await request.json(); } catch { body = {}; }
+
+  let slug = e.slug;
+  if (body.slug != null && body.slug.toString().trim().toLowerCase() !== e.slug) {
+    slug = body.slug.toString().trim().toLowerCase();
+    if (!validSlug(slug)) return json({ error: "slug", message: "Use 2 to 40 letters, numbers, and hyphens." }, 400);
+    if (reservedSet(env).has(slug)) return json({ error: "slug_reserved", message: "That address is reserved." }, 400);
+    const taken = await env.DB.prepare("SELECT id FROM events WHERE slug = ? AND id <> ?").bind(slug, id).first();
+    if (taken) return json({ error: "slug_taken", message: "That address is taken." }, 409);
+  }
+  const name = body.name != null ? (body.name.toString().trim().slice(0, 80) || e.name) : e.name;
+  const status = ["active", "draft", "archived"].includes(body.status) ? body.status : e.status;
+  const plan = body.plan === null ? null : (PLANS[body.plan] ? body.plan : e.plan);
+  const dailyLimit = body.daily_limit != null ? clampInt(body.daily_limit, 1, 1000, e.daily_limit) : e.daily_limit;
+  const paidAt = plan && status === "active" ? (e.paid_at || Date.now()) : e.paid_at;
+  await env.DB.prepare(
+    "UPDATE events SET name = ?, slug = ?, status = ?, plan = ?, daily_limit = ?, paid_at = ? WHERE id = ?"
+  ).bind(name, slug, status, plan, dailyLimit, paidAt, id).run();
+  const updated = await eventById(env, id);
+  return json({ ok: true, event: Object.assign({}, ownerEventShape(env, updated)) });
+}
+
+async function adminDeleteEvent(request, env, id) {
+  const gate = await requireAdmin(request, env);
+  if (gate.error) return gate.error;
+  const e = await eventById(env, id);
+  if (!e) return json({ error: "notfound", message: "Event not found." }, 404);
+  const { results } = await env.DB.prepare("SELECT r2_key, thumb_key FROM uploads WHERE event_id = ?").bind(id).all();
+  for (const row of results || []) {
+    if (row.r2_key) await env.BUCKET.delete(row.r2_key);
+    if (row.thumb_key) await env.BUCKET.delete(row.thumb_key);
+  }
+  await env.DB.prepare("DELETE FROM uploads WHERE event_id = ?").bind(id).run();
+  await env.DB.prepare("DELETE FROM events WHERE id = ?").bind(id).run();
+  return json({ ok: true });
+}
+
+// Operations assistant. Proxies to Claude (Opus) with a read-only snapshot of the
+// business so the operators can ask about clients and plan next steps. The API key
+// never leaves the Worker. Absent key = a friendly "not configured yet".
+async function adminAssistant(request, env) {
+  const gate = await requireAdmin(request, env);
+  if (gate.error) return gate.error;
+  if (!env.ANTHROPIC_API_KEY) return json({ error: "no_key", message: "The assistant is not set up yet. Add the ANTHROPIC_API_KEY secret to switch it on." }, 503);
+  let body; try { body = await request.json(); } catch { return json({ error: "bad", message: "Bad request." }, 400); }
+  const messages = Array.isArray(body.messages) ? body.messages.slice(-20) : [];
+  if (!messages.length) return json({ error: "empty", message: "Say something first." }, 400);
+
+  const orgsQ = await env.DB.prepare(
+    "SELECT o.email, o.created_at, (SELECT COUNT(*) FROM events e WHERE e.organizer_id = o.id) AS events FROM organizers o ORDER BY o.created_at DESC LIMIT 200"
+  ).all();
+  const evsQ = await env.DB.prepare(
+    `SELECT e.name, e.slug, e.status, e.plan, o.email AS owner,
+       (SELECT COUNT(*) FROM uploads u WHERE u.event_id = e.id) AS photos
+     FROM events e JOIN organizers o ON o.id = e.organizer_id ORDER BY e.created_at DESC LIMIT 200`
+  ).all();
+  const snapshot = JSON.stringify({ clients: orgsQ.results || [], events: evsQ.results || [] });
+  const system =
+    "You are the operations assistant for KA Memories, a multi-tenant wedding and event photo-sharing service at kamemories.com. " +
+    "You help the two operators run the business: understanding clients and events, drafting client messages, and suggesting next steps. " +
+    "Be concise, warm, and concrete. You can read the data snapshot below but cannot change anything; when the operator wants to make a change, point them to the control in this panel (New client event, or the status and plan selectors on an event). " +
+    "Never invent clients or numbers that are not in the snapshot. Data snapshot (JSON): " + snapshot;
+
+  const payload = {
+    model: "claude-opus-4-8",
+    max_tokens: 1024,
+    system: system,
+    messages: messages.map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: (m.content || "").toString().slice(0, 4000) })),
+  };
+  try {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
+      body: JSON.stringify(payload),
+    });
+    const data = await r.json();
+    if (!r.ok) return json({ error: "upstream", message: (data && data.error && data.error.message) || "The assistant could not respond." }, 502);
+    const text = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n").trim();
+    return json({ ok: true, reply: text || "(no reply)" });
+  } catch (e) {
+    return json({ error: "network", message: "Could not reach the assistant." }, 502);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Control plane: photo curation (scoped to the organizer's own events)
 // ---------------------------------------------------------------------------
 
@@ -911,10 +1098,21 @@ export default {
           return ownerMedia(request, env, decodeURIComponent(path.slice("/owner-media/".length)));
         }
 
+        if (path === "/api/admin/overview" && method === "GET") return adminOverview(request, env);
+        if (path === "/api/admin/events" && method === "POST") return adminCreateEvent(request, env);
+        const adminEv = path.match(/^\/api\/admin\/events\/([^/]+)$/);
+        if (adminEv) {
+          const id = decodeURIComponent(adminEv[1]);
+          if (method === "PATCH") return adminUpdateEvent(request, env, id);
+          if (method === "DELETE") return adminDeleteEvent(request, env, id);
+        }
+        if (path === "/api/admin/assistant" && method === "POST") return adminAssistant(request, env);
+
         if (method === "GET") {
           if (path === "/") return asset(env, url, request, "/home.html");
           if (path === "/login") return asset(env, url, request, "/login.html");
           if (path === "/app") return asset(env, url, request, "/dashboard.html");
+          if (path === "/admin") return asset(env, url, request, "/admin.html");
         }
 
         return env.ASSETS ? env.ASSETS.fetch(request) : new Response("Not found.", { status: 404 });
