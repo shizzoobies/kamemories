@@ -25,6 +25,7 @@
   <a href="/app">Go to your dashboard</a>.
 </div>
 
+<!-- LIST VIEW -->
 <section class="section dash" id="console" style="display:none">
   <div class="dash-head">
     <h1 class="gallery-title display">Operator console</h1>
@@ -32,19 +33,66 @@
   </div>
   <div class="cur-stats" id="stats"></div>
 
-  <div class="admin-grid">
-    <div class="admin-col">
-      <div class="admin-colhead"><h2 class="admin-h">Events</h2><span class="admin-count" id="eventsCount"></span></div>
-      <input id="eventsSearch" class="cur-input admin-search" type="search" placeholder="Search events or clients" aria-label="Search events" />
-      <div id="eventsList" class="admin-list"></div>
-    </div>
-    <div class="admin-col">
-      <div class="admin-colhead"><h2 class="admin-h">Clients</h2><span class="admin-count" id="clientsCount"></span></div>
-      <div id="clientsList" class="admin-list"></div>
-    </div>
-  </div>
+  <div class="admin-colhead"><h2 class="admin-h">Events</h2><span class="admin-count" id="eventsCount"></span></div>
+  <input id="eventsSearch" class="cur-input admin-search" type="search" placeholder="Search by event, address, or client" aria-label="Search events" />
+  <div id="eventsList" class="admin-list"></div>
+
+  <div class="admin-colhead admin-colhead-sp"><h2 class="admin-h">Clients</h2><span class="admin-count" id="clientsCount"></span></div>
+  <div id="clientsList" class="admin-clients"></div>
 </section>
 
+<!-- EVENT DETAIL VIEW -->
+<section class="section dash" id="eventDetail" style="display:none">
+  <button class="dash-back" id="detailBack" type="button">&larr; All events</button>
+  <div class="manage-head">
+    <div class="manage-id">
+      <h1 class="gallery-title display" id="dName">Event</h1>
+      <a class="manage-url" id="dUrl" href="#" target="_blank" rel="noopener"></a>
+      <p class="admin-sub" id="dOwner" style="margin:6px 0 0"></p>
+    </div>
+    <div class="manage-actions">
+      <button class="btn" id="dCopy" type="button">Copy capture link</button>
+      <a class="btn" id="dView" href="#" target="_blank" rel="noopener">View site</a>
+    </div>
+  </div>
+
+  <div class="cur-stats" id="dStats"></div>
+
+  <form id="detailForm" class="form-card">
+    <div class="form-grid">
+      <label class="field"><span>Event name</span><input id="dInName" type="text" maxlength="80" /></label>
+      <label class="field"><span>Address (subdomain)</span>
+        <div class="slug-row"><input id="dInSlug" type="text" maxlength="40" /><span class="slug-suffix">.kamemories.com</span></div>
+      </label>
+      <label class="field"><span>Photos per guest, daily</span><input id="dInLimit" type="number" min="1" max="1000" /></label>
+      <label class="field"><span>Plan</span>
+        <select id="dInPlan">
+          <option value="">No plan</option>
+          <option value="intimate">Intimate</option>
+          <option value="signature">Signature</option>
+          <option value="grand">Grand</option>
+        </select>
+      </label>
+      <label class="field"><span>Status</span>
+        <select id="dInStatus">
+          <option value="active">Active (live)</option>
+          <option value="draft">Draft (hidden)</option>
+          <option value="archived">Archived</option>
+        </select>
+      </label>
+      <label class="field"><span>Tagline</span><input id="dInTagline" type="text" maxlength="120" placeholder="Together with their families" /></label>
+      <label class="field"><span>Date (free text)</span><input id="dInDate" type="text" maxlength="80" placeholder="September 14, 2025" /></label>
+      <label class="field"><span>Venue</span><input id="dInVenue" type="text" maxlength="120" placeholder="Sonoma, California" /></label>
+    </div>
+    <p id="detailMsg" class="auth-msg"></p>
+    <div class="row">
+      <button class="btn primary" id="dSave" type="submit">Save changes</button>
+      <button class="btn danger-btn" id="dDelete" type="button">Delete event</button>
+    </div>
+  </form>
+</section>
+
+<!-- ASSISTANT (list view) -->
 <section class="section dash" id="assistantSection" style="display:none">
   <div class="admin-colhead"><h2 class="admin-h">Assistant</h2><span class="admin-tag">Opus</span></div>
   <p class="admin-sub" id="asstNote">Ask about your clients, draft a note, or plan a launch. It reads your live data and never changes anything.</p>

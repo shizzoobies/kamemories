@@ -640,10 +640,13 @@ async function adminUpdateEvent(request, env, id) {
   const status = ["active", "draft", "archived"].includes(body.status) ? body.status : e.status;
   const plan = body.plan === null ? null : (PLANS[body.plan] ? body.plan : e.plan);
   const dailyLimit = body.daily_limit != null ? clampInt(body.daily_limit, 1, 1000, e.daily_limit) : e.daily_limit;
+  const tagline = body.tagline != null ? (body.tagline.toString().slice(0, 120) || null) : e.tagline;
+  const eventDate = body.event_date != null ? (body.event_date.toString().slice(0, 80) || null) : e.event_date;
+  const venue = body.venue != null ? (body.venue.toString().slice(0, 120) || null) : e.venue;
   const paidAt = plan && status === "active" ? (e.paid_at || Date.now()) : e.paid_at;
   await env.DB.prepare(
-    "UPDATE events SET name = ?, slug = ?, status = ?, plan = ?, daily_limit = ?, paid_at = ? WHERE id = ?"
-  ).bind(name, slug, status, plan, dailyLimit, paidAt, id).run();
+    "UPDATE events SET name = ?, slug = ?, status = ?, plan = ?, daily_limit = ?, paid_at = ?, tagline = ?, event_date = ?, venue = ? WHERE id = ?"
+  ).bind(name, slug, status, plan, dailyLimit, paidAt, tagline, eventDate, venue, id).run();
   const updated = await eventById(env, id);
   return json({ ok: true, event: Object.assign({}, ownerEventShape(env, updated)) });
 }

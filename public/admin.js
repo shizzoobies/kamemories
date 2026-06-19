@@ -1,12 +1,14 @@
 // Operator console. Gated server-side to ADMIN_EMAILS: this page only renders
 // data the /api/admin endpoints return, and they return nothing unless the signed
-// in organizer is an operator. Lists every client and event, sets up new client
-// events and subdomains, and talks to the Opus operations assistant.
+// in organizer is an operator. A compact list of every event (built to scan dozens)
+// opens into a full detail view where each event's settings are edited. Hash routed:
+// #/ is the list, #/e/<id> manages one event. Also lists clients and talks to Opus.
 
 const $ = (id) => document.getElementById(id);
 
 let data = null;            // { me, clients, events, stats, billing, assistant }
 let eventsFilter = "";
+let currentId = null;       // event open in the detail view
 const chat = [];            // assistant messages [{role, content}]
 
 let toastTimer = null;
@@ -21,6 +23,7 @@ function toast(msg, isErr) {
 function setMsg(id, text, isErr) { const el = $(id); el.textContent = text || ""; el.classList.toggle("err", !!isErr); }
 function esc(s) { return (s || "").toString().replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 function fmtDate(ms) { try { return new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }); } catch (e) { return ""; } }
+const PLAN_LABEL = { intimate: "Intimate", signature: "Signature", grand: "Grand" };
 
 async function boot() {
   let r;
@@ -33,11 +36,16 @@ async function boot() {
   data = await r.json();
   renderWho();
   renderStats();
-  renderEvents();
   renderClients();
-  $("console").style.display = "block";
-  $("assistantSection").style.display = "block";
   if (data.assistant === false) $("asstNote").textContent = "The assistant is not switched on yet. Add the ANTHROPIC_API_KEY secret and it will appear here.";
+  window.addEventListener("hashchange", route);
+  route();
+}
+
+function route() {
+  const m = location.hash.match(/^#\/e\/(.+)$/);
+  if (m) openEvent(decodeURIComponent(m[1]));
+  else showList();
 }
 
 function renderWho() {
@@ -77,7 +85,15 @@ function renderStats() {
   }
 }
 
-const PLAN_LABEL = { intimate: "Intimate", signature: "Signature", grand: "Grand" };
+// ---- List view ----
+function showList() {
+  currentId = null;
+  $("eventDetail").style.display = "none";
+  $("console").style.display = "block";
+  $("assistantSection").style.display = "block";
+  renderEvents();
+  window.scrollTo(0, 0);
+}
 
 function eventMatches(e) {
   if (!eventsFilter) return true;
@@ -97,70 +113,20 @@ function renderEvents() {
 function eventRow(e) {
   const row = document.createElement("div");
   row.className = "admin-row";
-
-  const head = document.createElement("div");
-  head.className = "admin-row-head";
-  head.innerHTML = '<div class="admin-row-name">' + esc(e.name) + '</div>' +
-    '<a class="admin-row-host" href="' + esc(e.url) + '" target="_blank" rel="noopener">' + esc(e.host) + '</a>' +
-    '<div class="admin-row-owner">' + esc(e.organizer_email) + '</div>';
-  row.appendChild(head);
-
-  const meta = document.createElement("div");
-  meta.className = "admin-row-meta";
-  meta.innerHTML = '<span><strong>' + (e.total || 0) + '</strong> photos</span>' +
-    '<span><strong>' + (e.pending || 0) + '</strong> pending</span>' +
-    '<span><strong>' + (e.approved || 0) + '</strong> approved</span>';
-  row.appendChild(meta);
-
-  const controls = document.createElement("div");
-  controls.className = "admin-row-controls";
-
-  const statusSel = document.createElement("select");
-  statusSel.className = "cur-input admin-mini";
-  ["active", "draft", "archived"].forEach((s) => {
-    const o = document.createElement("option"); o.value = s; o.textContent = s[0].toUpperCase() + s.slice(1); if (e.status === s) o.selected = true; statusSel.appendChild(o);
-  });
-  statusSel.addEventListener("change", () => patchEvent(e, { status: statusSel.value }));
-
-  const planSel = document.createElement("select");
-  planSel.className = "cur-input admin-mini";
-  [["", "No plan"], ["intimate", "Intimate"], ["signature", "Signature"], ["grand", "Grand"]].forEach(([v, lbl]) => {
-    const o = document.createElement("option"); o.value = v; o.textContent = lbl; if ((e.plan || "") === v) o.selected = true; planSel.appendChild(o);
-  });
-  planSel.addEventListener("change", () => patchEvent(e, { plan: planSel.value || null }));
-
-  const del = document.createElement("button");
-  del.type = "button"; del.className = "admin-del"; del.textContent = "Delete";
-  del.addEventListener("click", () => deleteEvent(e));
-
-  controls.append(statusSel, planSel, del);
-  row.appendChild(controls);
+  row.tabIndex = 0;
+  row.setAttribute("role", "button");
+  const plan = e.plan ? PLAN_LABEL[e.plan] : "No plan";
+  row.innerHTML =
+    '<span class="admin-row-name">' + esc(e.name) + '</span>' +
+    '<span class="ev-badge ' + esc(e.status) + '">' + esc(e.status) + '</span>' +
+    '<span class="admin-row-host">' + esc(e.host) + '</span>' +
+    '<span class="admin-row-owner">' + esc(e.organizer_email) + '</span>' +
+    '<span class="admin-row-count">' + (e.total || 0) + ' photos &middot; ' + esc(plan) + '</span>' +
+    '<span class="admin-row-go" aria-hidden="true">&rsaquo;</span>';
+  const open = () => { location.hash = "#/e/" + encodeURIComponent(e.id); };
+  row.addEventListener("click", open);
+  row.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); open(); } });
   return row;
-}
-
-async function patchEvent(e, patch) {
-  try {
-    const r = await fetch("/api/admin/events/" + encodeURIComponent(e.id), {
-      method: "PATCH", credentials: "same-origin",
-      headers: { "content-type": "application/json" }, body: JSON.stringify(patch),
-    });
-    const d = await r.json();
-    if (!r.ok) { toast(d.message || "Could not update.", true); return; }
-    Object.assign(e, { status: d.event.status, plan: d.event.plan, slug: d.event.slug, host: d.event.host, url: d.event.url });
-    toast("Updated.");
-  } catch (err) { toast("No connection.", true); }
-}
-
-async function deleteEvent(e) {
-  if (!confirm("Delete " + e.name + " and every photo in it? This cannot be undone.")) return;
-  try {
-    const r = await fetch("/api/admin/events/" + encodeURIComponent(e.id), { method: "DELETE", credentials: "same-origin" });
-    if (!r.ok) { toast("Could not delete.", true); return; }
-    data.events = data.events.filter((x) => x.id !== e.id);
-    data.stats.events = data.events.length;
-    renderStats(); renderEvents();
-    toast("Event deleted.");
-  } catch (err) { toast("No connection.", true); }
 }
 
 function renderClients() {
@@ -176,6 +142,110 @@ function renderClients() {
     list.appendChild(row);
   }
 }
+
+// ---- Detail view ----
+function openEvent(id) {
+  const e = data && data.events.find((x) => x.id === id);
+  if (!e) { location.hash = ""; return; }
+  currentId = id;
+  $("console").style.display = "none";
+  $("assistantSection").style.display = "none";
+  $("eventDetail").style.display = "block";
+  fillDetail(e);
+  window.scrollTo(0, 0);
+}
+
+function detailStats(e) {
+  const items = [
+    { label: "Total", value: e.total || 0 },
+    { label: "Pending", value: e.pending || 0 },
+    { label: "Approved", value: e.approved || 0 },
+  ];
+  const wrap = $("dStats");
+  wrap.innerHTML = "";
+  for (const it of items) {
+    const card = document.createElement("div");
+    card.className = "stat";
+    const v = document.createElement("div"); v.className = "stat-v"; v.textContent = it.value;
+    const l = document.createElement("div"); l.className = "stat-l"; l.textContent = it.label;
+    card.append(v, l);
+    wrap.appendChild(card);
+  }
+}
+
+function fillDetail(e) {
+  $("dName").textContent = e.name;
+  const url = $("dUrl"); url.textContent = e.host; url.href = e.url;
+  $("dOwner").textContent = "Client: " + e.organizer_email;
+  $("dView").href = e.url;
+  detailStats(e);
+  $("dInName").value = e.name || "";
+  $("dInSlug").value = e.slug || "";
+  $("dInLimit").value = e.daily_limit || 10;
+  $("dInPlan").value = e.plan || "";
+  $("dInStatus").value = e.status || "active";
+  $("dInTagline").value = e.tagline || "";
+  $("dInDate").value = e.event_date || "";
+  $("dInVenue").value = e.venue || "";
+  setMsg("detailMsg", "", false);
+}
+
+$("detailBack").addEventListener("click", () => { location.hash = ""; });
+
+$("dCopy").addEventListener("click", async () => {
+  const e = data.events.find((x) => x.id === currentId);
+  if (!e) return;
+  try { await navigator.clipboard.writeText(e.capture_url); toast("Capture link copied."); }
+  catch (err) { toast("Could not copy.", true); }
+});
+
+$("detailForm").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const e = data.events.find((x) => x.id === currentId);
+  if (!e) return;
+  const btn = $("dSave");
+  btn.disabled = true;
+  const body = {
+    name: $("dInName").value.trim(),
+    slug: $("dInSlug").value.trim(),
+    daily_limit: parseInt($("dInLimit").value, 10),
+    plan: $("dInPlan").value || null,
+    status: $("dInStatus").value,
+    tagline: $("dInTagline").value,
+    event_date: $("dInDate").value,
+    venue: $("dInVenue").value,
+  };
+  try {
+    const r = await fetch("/api/admin/events/" + encodeURIComponent(currentId), {
+      method: "PATCH", credentials: "same-origin",
+      headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (!r.ok) { setMsg("detailMsg", d.message || "Could not save.", true); return; }
+    Object.assign(e, d.event);
+    fillDetail(e);
+    setMsg("detailMsg", "Saved.", false);
+    toast("Saved.");
+  } catch (err) {
+    setMsg("detailMsg", "No connection. Try again.", true);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$("dDelete").addEventListener("click", async () => {
+  const e = data.events.find((x) => x.id === currentId);
+  if (!e) return;
+  if (!confirm("Delete " + e.name + " and every photo in it? This cannot be undone.")) return;
+  try {
+    const r = await fetch("/api/admin/events/" + encodeURIComponent(currentId), { method: "DELETE", credentials: "same-origin" });
+    if (!r.ok) { toast("Could not delete.", true); return; }
+    data.events = data.events.filter((x) => x.id !== currentId);
+    data.stats.events = data.events.length;
+    toast("Event deleted.");
+    location.hash = "";
+  } catch (err) { toast("No connection.", true); }
+});
 
 // ---- Create ----
 function openModal(id) { $(id).classList.add("show"); }
@@ -207,7 +277,8 @@ $("createForm").addEventListener("submit", async (e) => {
     $("createForm").reset();
     toast("Event created.");
     const o = await fetch("/api/admin/overview", { credentials: "same-origin" });
-    if (o.ok) { data = await o.json(); renderStats(); renderEvents(); renderClients(); }
+    if (o.ok) { data = await o.json(); renderStats(); renderClients(); }
+    location.hash = "#/e/" + encodeURIComponent(d.event.id);
   } catch (err) {
     setMsg("createMsg", "No connection. Try again.", true);
   } finally {
@@ -249,9 +320,8 @@ $("asstForm").addEventListener("submit", async (e) => {
       body: JSON.stringify({ messages: chat.filter((m) => m !== thinking) }),
     });
     const d = await r.json();
-    chat.pop(); // remove the thinking placeholder
-    if (!r.ok) { chat.push({ role: "assistant", content: d.message || "The assistant could not respond." }); }
-    else { chat.push({ role: "assistant", content: d.reply || "(no reply)" }); }
+    chat.pop();
+    chat.push({ role: "assistant", content: r.ok ? (d.reply || "(no reply)") : (d.message || "The assistant could not respond.") });
     renderChat();
   } catch (err) {
     chat.pop();
