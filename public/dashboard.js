@@ -574,6 +574,8 @@ function installDemoBackend() {
   let store = null;
   let ready = null;
 
+  function customName() { try { return (localStorage.getItem("kamemoriesDemoName") || "").trim(); } catch (e) { return ""; } }
+
   function eventShape(over) {
     return Object.assign({
       id: MAIN_ID, slug: "demo", name: "Ava & Noah",
@@ -605,7 +607,7 @@ function installDemoBackend() {
       };
     });
     const main = eventShape({
-      name: (ev && ev.name) || "Ava & Noah",
+      name: customName() || (ev && ev.name) || "Ava & Noah",
       tagline: (ev && ev.tagline) || "Together with their families",
       event_date: (ev && ev.event_date) || "September 14, 2025",
       venue: (ev && ev.venue) || "Sonoma, California",

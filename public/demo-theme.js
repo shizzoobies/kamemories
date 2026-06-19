@@ -1,16 +1,19 @@
-// Demo-only: a "see it in your colors" bar. A visitor picks two colors and the
-// whole demo re-skins live by overriding the Midnight Pearl CSS variables with a
-// palette derived from their two colors. Client-side only; nothing is saved to
-// the server, so every visitor sees their own colors. Active only on the demo
-// subdomain (demo.kamemories.com / demo.localhost).
+// Demo-only personalization: a "make it yours" bar. A visitor types their names
+// and picks two colors (one-tap presets or a typed hex code), and the whole demo
+// re-skins live, names and palette, by overriding the Midnight Pearl CSS variables
+// and the displayed event name. Client-side only; nothing is saved to the server.
+// The choices ride along in localStorage so the event pages and the organizer demo
+// stay in sync. Active only on the demo subdomain (demo.kamemories.com).
 
 (function () {
-  const label = (location.hostname.split(".")[0] || "").toLowerCase();
-  if (label !== "demo") return;
+  const host = (location.hostname.split(".")[0] || "").toLowerCase();
+  if (host !== "demo") return;
 
   const root = document.documentElement;
   const STORE = "kamemoriesDemoTheme";
+  const NAME_STORE = "kamemoriesDemoName";
   const VARS = ["--bg", "--bg-grad-top", "--surface", "--surface-2", "--line", "--line-soft", "--ink", "--muted", "--faint", "--silver", "--silver-bright", "--silver-deep", "--gold", "--gold-bright", "--ivory", "--sheen"];
+  const DEF1 = "#0a1626", DEF2 = "#c7cfdb";
 
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
   const hsl = (h, s, l) => `hsl(${Math.round(h)}, ${Math.round(clamp(s, 0, 100))}%, ${Math.round(clamp(l, 0, 100))}%)`;
@@ -58,11 +61,50 @@
     };
   }
 
-  function apply(c1, c2) {
-    const p = palette(c1, c2);
-    for (const k in p) root.style.setProperty(k, p[k]);
+  function applyColors(c1, c2) { const p = palette(c1, c2); for (const k in p) root.style.setProperty(k, p[k]); }
+  function clearColors() { VARS.forEach((k) => root.style.removeProperty(k)); }
+
+  function savedTheme() { try { return JSON.parse(localStorage.getItem(STORE) || "null"); } catch (e) { return null; } }
+  function savedName() { try { return (localStorage.getItem(NAME_STORE) || "").trim(); } catch (e) { return ""; } }
+  function restoreColors() { const s = savedTheme(); if (s && s.c1 && s.c2) { if (s.reset) clearColors(); else applyColors(s.c1, s.c2); } }
+
+  // ---- Name personalization. The event scripts fill these from the API after
+  // load, so a MutationObserver keeps the visitor's name on top. ----
+  const NAME_TARGETS = ["names", "brand", "footName", "eventName"];
+  function applyName(n) {
+    n = (n || "").trim();
+    if (!n) return;
+    NAME_TARGETS.forEach((id) => { const el = document.getElementById(id); if (el && el.textContent !== n) el.textContent = n; });
+    if (document.title !== n) document.title = n;
   }
-  function clearTheme() { VARS.forEach((k) => root.style.removeProperty(k)); }
+  function watchName() {
+    const obs = new MutationObserver(() => applyName(savedName()));
+    NAME_TARGETS.forEach((id) => { const el = document.getElementById(id); if (el) obs.observe(el, { childList: true, characterData: true, subtree: true }); });
+    applyName(savedName());
+  }
+
+  // The organizer dashboard demo (/app) carries the colors and name too, but it
+  // renders no bar: the colors come from here, the name from its sandbox backend.
+  const onDashboard = location.pathname === "/app" || location.pathname === "/admin";
+  if (onDashboard) { restoreColors(); return; }
+
+  // ---- Bar (event, gallery, capture pages) ----
+  let one, two, basePrev, accPrev;
+  let last1 = DEF1, last2 = DEF2;
+
+  function setColors(c1, c2, isReset, syncInputs) {
+    last1 = c1; last2 = c2;
+    if (isReset) clearColors(); else applyColors(c1, c2);
+    if (syncInputs && one && two) { one.value = c1; two.value = c2; }
+    if (basePrev) basePrev.style.background = c1;
+    if (accPrev) accPrev.style.background = c2;
+    try { localStorage.setItem(STORE, JSON.stringify({ c1: c1, c2: c2, reset: !!isReset })); } catch (e) {}
+  }
+  function normHex(v) {
+    v = (v || "").trim();
+    if (v && v[0] !== "#") v = "#" + v;
+    return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v) ? v : null;
+  }
 
   // c1 = base, c2 = accent. The first is the default Midnight Pearl.
   const PRESETS = [
@@ -74,83 +116,86 @@
     { name: "Plum & Rose", c1: "#512840", c2: "#e0a8b0" },
   ];
 
-  function setTheme(c1, c2, isReset) {
-    if (isReset) clearTheme(); else apply(c1, c2);
-    if (one) one.value = c1;
-    if (two) two.value = c2;
-    try { localStorage.setItem(STORE, JSON.stringify({ c1, c2, reset: !!isReset })); } catch (e) {}
+  function makeSep() { const s = document.createElement("span"); s.style.cssText = "width:1px;height:18px;background:rgba(255,255,255,0.18)"; return s; }
+  function field(w, titleText, placeholder) {
+    const inp = document.createElement("input");
+    inp.type = "text"; inp.spellcheck = false; inp.autocomplete = "off";
+    inp.title = titleText; inp.setAttribute("aria-label", titleText); inp.placeholder = placeholder;
+    Object.assign(inp.style, { width: w, padding: "5px 9px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.07)", color: "#fff", font: "inherit" });
+    return inp;
   }
 
-  // ---- UI ----
-  let one, two;
   const bar = document.createElement("div");
   bar.setAttribute("role", "region");
-  bar.setAttribute("aria-label", "Preview the gallery in your colors");
+  bar.setAttribute("aria-label", "Personalize the demo with your names and colors");
   Object.assign(bar.style, {
     position: "fixed", top: "0", left: "0", right: "0", zIndex: "200",
     display: "flex", alignItems: "center", justifyContent: "center", flexWrap: "wrap",
-    gap: "10px 16px", padding: "9px 16px",
+    gap: "9px 14px", padding: "9px 16px",
     background: "rgba(8, 12, 20, 0.82)", backdropFilter: "blur(10px)", webkitBackdropFilter: "blur(10px)",
     borderBottom: "1px solid rgba(255,255,255,0.12)",
     font: "500 0.8rem 'Hanken Grotesk', system-ui, sans-serif", color: "rgba(255,255,255,0.82)",
   });
 
   const lab = document.createElement("span");
-  lab.textContent = "See it in your colors";
-  lab.style.letterSpacing = "0.04em";
-  lab.style.opacity = "0.9";
+  lab.textContent = "Make it yours";
+  lab.style.letterSpacing = "0.04em"; lab.style.opacity = "0.9";
 
-  function swatch(titleText) {
-    const inp = document.createElement("input");
-    inp.type = "color";
-    inp.title = titleText;
-    inp.setAttribute("aria-label", titleText);
-    Object.assign(inp.style, { width: "30px", height: "30px", padding: "0", border: "1px solid rgba(255,255,255,0.35)", borderRadius: "50%", background: "none", cursor: "pointer", appearance: "none", webkitAppearance: "none" });
-    return inp;
-  }
-  one = swatch("Your first color (base)");
-  two = swatch("Your second color (accent)");
-  const swatchWrap = document.createElement("span");
-  swatchWrap.style.display = "inline-flex";
-  swatchWrap.style.gap = "8px";
-  swatchWrap.append(one, two);
+  // Names
+  const nameInput = field("150px", "Your names", "Your names");
+  nameInput.maxLength = 40;
+  nameInput.addEventListener("input", () => {
+    const n = nameInput.value.trim();
+    try { localStorage.setItem(NAME_STORE, n); } catch (e) {}
+    applyName(n);
+  });
 
-  one.addEventListener("input", () => setTheme(one.value, two.value, false));
-  two.addEventListener("input", () => setTheme(one.value, two.value, false));
-
+  // Preset swatches (one tap, no color theory needed)
   const chips = document.createElement("span");
-  chips.style.display = "inline-flex";
-  chips.style.gap = "7px";
+  chips.style.display = "inline-flex"; chips.style.gap = "7px";
   PRESETS.forEach((p) => {
     const b = document.createElement("button");
-    b.type = "button";
-    b.title = p.name;
-    b.setAttribute("aria-label", p.name);
+    b.type = "button"; b.title = p.name; b.setAttribute("aria-label", p.name);
     Object.assign(b.style, { width: "22px", height: "22px", borderRadius: "50%", border: "1px solid rgba(255,255,255,0.3)", cursor: "pointer", padding: "0", background: `linear-gradient(135deg, ${p.c1} 0 50%, ${p.c2} 50% 100%)` });
-    b.addEventListener("click", () => setTheme(p.c1, p.c2, p.reset));
+    b.addEventListener("click", () => setColors(p.c1, p.c2, p.reset, true));
     chips.appendChild(b);
   });
 
-  const sep = document.createElement("span");
-  sep.textContent = "";
-  sep.style.cssText = "width:1px;height:18px;background:rgba(255,255,255,0.18)";
+  // Hex code entry, with a live preview dot. No native picker (a typed hex is all
+  // most people have from their invitations or palette).
+  function hexField(titleText) {
+    const wrap = document.createElement("span");
+    wrap.style.cssText = "display:inline-flex;align-items:center;gap:6px";
+    const prev = document.createElement("span");
+    prev.setAttribute("aria-hidden", "true");
+    Object.assign(prev.style, { width: "20px", height: "20px", borderRadius: "50%", border: "1px solid rgba(255,255,255,0.35)", flex: "0 0 auto" });
+    const inp = field("84px", titleText, "#000000");
+    inp.maxLength = 7; inp.style.letterSpacing = "0.03em";
+    wrap.append(prev, inp);
+    return { wrap: wrap, input: inp, prev: prev };
+  }
+  const baseF = hexField("Your base color, as a hex code");
+  const accF = hexField("Your accent color, as a hex code");
+  one = baseF.input; two = accF.input; basePrev = baseF.prev; accPrev = accF.prev;
+  function onHex() {
+    const v1 = normHex(one.value), v2 = normHex(two.value);
+    if (v1) basePrev.style.background = v1;
+    if (v2) accPrev.style.background = v2;
+    setColors(v1 || last1, v2 || last2, false, false);
+  }
+  one.addEventListener("input", onHex);
+  two.addEventListener("input", onHex);
 
   const reset = document.createElement("button");
-  reset.type = "button";
-  reset.textContent = "Reset";
+  reset.type = "button"; reset.textContent = "Reset";
   Object.assign(reset.style, { background: "none", border: "0", color: "rgba(255,255,255,0.6)", font: "inherit", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "3px" });
-  reset.addEventListener("click", () => setTheme("#0a1626", "#c7cfdb", true));
-
-  const sep2 = document.createElement("span");
-  sep2.style.cssText = "width:1px;height:18px;background:rgba(255,255,255,0.18)";
+  reset.addEventListener("click", () => setColors(DEF1, DEF2, true, true));
 
   const admin = document.createElement("a");
-  admin.href = "/app";
-  admin.textContent = "Organizer demo";
-  admin.title = "See the dashboard the host uses";
+  admin.href = "/app"; admin.textContent = "Organizer demo"; admin.title = "See the dashboard the host uses";
   Object.assign(admin.style, { color: "rgba(255,255,255,0.92)", font: "inherit", fontWeight: "600", textDecoration: "none", letterSpacing: "0.02em", whiteSpace: "nowrap" });
 
-  bar.append(lab, swatchWrap, chips, sep, reset, sep2, admin);
+  bar.append(lab, nameInput, makeSep(), chips, baseF.wrap, accF.wrap, reset, makeSep(), admin);
 
   function fit() { document.body.style.paddingTop = bar.offsetHeight + "px"; }
 
@@ -158,11 +203,14 @@
     document.body.appendChild(bar);
     fit();
     window.addEventListener("resize", fit, { passive: true });
-    // Restore a previous choice (e.g. navigating from landing to gallery).
-    let saved = null;
-    try { saved = JSON.parse(localStorage.getItem(STORE) || "null"); } catch (e) {}
-    if (saved && saved.c1 && saved.c2) setTheme(saved.c1, saved.c2, !!saved.reset);
-    else { one.value = "#0a1626"; two.value = "#c7cfdb"; }
+    // Restore previous color choice (e.g. navigating landing -> gallery).
+    const st = savedTheme();
+    if (st && st.c1 && st.c2) setColors(st.c1, st.c2, !!st.reset, true);
+    else { one.value = DEF1; two.value = DEF2; basePrev.style.background = DEF1; accPrev.style.background = DEF2; }
+    // Restore previous name and keep it applied over the API fill.
+    const sn = savedName();
+    if (sn) nameInput.value = sn;
+    watchName();
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mount);
