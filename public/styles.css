@@ -553,7 +553,7 @@ body.cinema .veil {
 .cine-nav {
   position: fixed; top: 0; left: 0; right: 0; z-index: 40;
   display: flex; align-items: center; justify-content: space-between;
-  padding: clamp(14px, 2.6vh, 26px) clamp(22px, 5vw, 72px);
+  padding: clamp(10px, 1.8vh, 16px) clamp(22px, 5vw, 72px);
   border-bottom: 1px solid transparent;
   transition: background 0.35s ease, padding 0.3s ease, border-color 0.35s ease, box-shadow 0.35s ease;
 }
@@ -565,9 +565,9 @@ body.cinema .veil {
   padding-top: clamp(9px, 1.6vh, 14px); padding-bottom: clamp(9px, 1.6vh, 14px);
 }
 .cine-brand { display: inline-flex; align-items: center; font-family: var(--font-cormorant); font-weight: 500; font-size: 1.5rem; letter-spacing: 0.01em; color: var(--cine-ink); text-decoration: none; }
-.cine-logo { height: 64px; width: auto; display: block; transition: height 0.32s ease; }
-.cine-nav.scrolled .cine-logo { height: 36px; }
-@media (max-width: 620px) { .cine-logo { height: 52px; } .cine-nav.scrolled .cine-logo { height: 34px; } }
+.cine-logo { height: 128px; width: auto; display: block; transition: height 0.32s ease; }
+.cine-nav.scrolled .cine-logo { height: 44px; }
+@media (max-width: 620px) { .cine-logo { height: 92px; } .cine-nav.scrolled .cine-logo { height: 38px; } }
 .cine-section { scroll-margin-top: 84px; }
 .cine-links { display: flex; align-items: center; gap: clamp(18px, 3vw, 40px); }
 .cine-links a { font-size: 0.74rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--cine-dim); text-decoration: none; transition: color 0.3s; }
