@@ -713,6 +713,24 @@ body.cinema .veil {
 .demo-reset:hover { color: #fff; }
 .demo-flip { color: #0a1322; background: linear-gradient(180deg, #ffffff, #e7ecf3); font: inherit; font-weight: 700; letter-spacing: 0.01em; text-decoration: none; white-space: nowrap; padding: 8px 15px; border-radius: 999px; box-shadow: 0 3px 13px rgba(0, 0, 0, 0.32); transition: transform 0.18s ease, box-shadow 0.18s ease; }
 .demo-flip:hover { transform: translateY(-1px); box-shadow: 0 7px 18px rgba(0, 0, 0, 0.44); }
+.demo-phone { display: inline-flex; align-items: center; gap: 7px; color: #fff; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.34); font: inherit; font-weight: 600; letter-spacing: 0.01em; white-space: nowrap; cursor: pointer; padding: 8px 15px; border-radius: 999px; transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease; }
+.demo-phone:hover { background: rgba(255, 255, 255, 0.14); border-color: rgba(255, 255, 255, 0.62); transform: translateY(-1px); }
+.demo-phone svg { width: 15px; height: 15px; flex: none; }
+
+/* "View on your phone" modal: a scannable QR on a bright card, framed by the
+   visitor's chosen palette so it feels part of their event. Built by demo-theme.js. */
+.demoqr-modal { position: fixed; inset: 0; z-index: 300; display: none; align-items: center; justify-content: center; padding: 24px; background: rgba(4, 7, 13, 0.74); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.demoqr-modal.show { display: flex; animation: demoqrFade 0.22s ease; }
+@keyframes demoqrFade { from { opacity: 0; } to { opacity: 1; } }
+.demoqr-dialog { position: relative; width: min(92vw, 360px); text-align: center; padding: 30px 28px 26px; border-radius: 22px; background: linear-gradient(180deg, var(--surface-2, #131c2c), var(--surface, #0e1626)); border: 1px solid var(--line, rgba(255, 255, 255, 0.12)); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6); color: var(--ink, #f3f1ea); animation: demoqrRise 0.26s ease; }
+@keyframes demoqrRise { from { transform: translateY(12px) scale(0.98); opacity: 0; } to { transform: none; opacity: 1; } }
+.demoqr-close { position: absolute; top: 11px; right: 14px; background: none; border: 0; color: var(--muted, #aab3c2); font-size: 1.6rem; line-height: 1; cursor: pointer; padding: 4px; transition: color 0.18s ease; }
+.demoqr-close:hover { color: var(--ink, #fff); }
+.demoqr-eyebrow { margin: 0 0 5px; font: 600 0.72rem "Hanken Grotesk", system-ui, sans-serif; letter-spacing: 0.22em; text-transform: uppercase; color: var(--silver, #c7cfdb); }
+.demoqr-title { margin: 0 0 17px; font-family: "Playfair Display", Georgia, serif; font-weight: 600; font-size: 1.5rem; color: var(--ink, #f3f1ea); }
+.demoqr-card { display: inline-block; padding: 14px; border-radius: 16px; background: #fff; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); }
+.demoqr-img { display: block; width: min(232px, 60vw); height: min(232px, 60vw); }
+.demoqr-note { margin: 17px auto 0; max-width: 264px; font: 400 0.86rem "Hanken Grotesk", system-ui, sans-serif; line-height: 1.5; color: var(--muted, #aab3c2); }
 
 /* Persistent CTA off the right edge of every demo page, back to the main site. */
 .demo-cta { position: fixed; right: 0; top: 60%; transform: translateY(-50%); z-index: 35; writing-mode: vertical-rl; text-orientation: mixed; background: var(--sheen); color: #0a1322; font: 700 0.8rem "Hanken Grotesk", system-ui, sans-serif; letter-spacing: 0.12em; padding: 18px 10px; border-radius: 14px 0 0 14px; text-decoration: none; box-shadow: -3px 10px 28px rgba(0, 0, 0, 0.46); transition: transform 0.25s ease; }

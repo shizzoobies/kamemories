@@ -206,12 +206,45 @@
   flip.textContent = "Click to see Organizer View";
   flip.title = "See the dashboard the host uses";
 
-  bar.append(lab, nameInput, colors, sep2, flip);
+  // "View on your phone": opens a modal with a QR that points at this demo, so a
+  // visitor can scan it and see the live event on their own phone. The QR is a
+  // static, self-hosted asset (no library loads on this page), so it is instant.
+  const phone = document.createElement("button");
+  phone.type = "button"; phone.className = "demo-phone";
+  phone.title = "Scan a QR code to open this demo on your phone";
+  phone.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2.2"/><line x1="11" y1="18.5" x2="13" y2="18.5"/></svg><span>View on your phone</span>';
+
+  const sep3 = document.createElement("span"); sep3.className = "demo-sep";
+  bar.append(lab, nameInput, colors, sep2, phone, sep3, flip);
+
+  // Build the phone-preview modal once, wire close (button, backdrop, Escape),
+  // and return its opener for the button to call.
+  function buildQrModal() {
+    const modal = document.createElement("div");
+    modal.className = "demoqr-modal"; modal.setAttribute("aria-hidden", "true");
+    modal.innerHTML =
+      '<div class="demoqr-dialog" role="dialog" aria-modal="true" aria-label="View this demo on your phone">' +
+        '<button class="demoqr-close" type="button" aria-label="Close">&times;</button>' +
+        '<p class="demoqr-eyebrow">See it on your phone</p>' +
+        '<h3 class="demoqr-title">Scan to open the demo</h3>' +
+        '<div class="demoqr-card"><img class="demoqr-img" src="/demo-qr.svg" alt="QR code that opens this demo on your phone" width="232" height="232" /></div>' +
+        '<p class="demoqr-note">Point your phone camera at the code. The live demo opens right on your phone, no app to install.</p>' +
+      '</div>';
+    document.body.appendChild(modal);
+    const openM = () => { modal.classList.add("show"); modal.setAttribute("aria-hidden", "false"); };
+    const closeM = () => { modal.classList.remove("show"); modal.setAttribute("aria-hidden", "true"); };
+    modal.querySelector(".demoqr-close").addEventListener("click", closeM);
+    modal.addEventListener("click", (e) => { if (e.target === modal) closeM(); });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && modal.classList.contains("show")) closeM(); });
+    return openM;
+  }
 
   function fit() { document.body.style.paddingTop = bar.offsetHeight + "px"; }
 
   function mount() {
     document.body.appendChild(bar);
+    const openQr = buildQrModal();
+    phone.addEventListener("click", openQr);
     fit();
     window.addEventListener("resize", fit, { passive: true });
     const st = savedTheme();
