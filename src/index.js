@@ -935,7 +935,14 @@ export default {
       }
 
       if (!isActive) {
-        if (method === "GET") return asset(env, url, request, "/event-404.html", 404);
+        if (method === "GET") {
+          // Serve real static files (styles, favicon, the footer logo) so the
+          // not-found page renders properly; show the page itself for navigations.
+          if (/\.[a-z0-9]+$/i.test(path) && !path.endsWith(".html")) {
+            return env.ASSETS ? env.ASSETS.fetch(request) : new Response("Not found.", { status: 404 });
+          }
+          return asset(env, url, request, "/event-404.html", 404);
+        }
         return new Response("Not found.", { status: 404 });
       }
 
