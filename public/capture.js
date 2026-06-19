@@ -20,6 +20,14 @@ const toastEl = $("toast");
 
 const MAX_EDGE = 2200;
 
+// On the demo subdomain the capture page is a sandbox: the camera, review, and
+// send all work and feel real, but nothing is uploaded or stored.
+const IS_DEMO = (location.hostname.split(".")[0] || "").toLowerCase() === "demo";
+if (IS_DEMO) {
+  const sub = document.querySelector(".event-sub");
+  if (sub) sub.textContent = "A live demo. Snap a photo to try the experience. Nothing is uploaded or saved.";
+}
+
 let stream = null;
 let facing = "environment";
 let pending = null; // { blob, url }
@@ -234,6 +242,18 @@ async function send() {
     nameInput.scrollIntoView({ behavior: "smooth", block: "center" });
     return;
   }
+
+  if (IS_DEMO) {
+    // Sandbox: celebrate the capture, keep the photo on the device, store nothing.
+    showSentPrint();
+    remaining = Math.max(0, remaining - 1);
+    const limit = parseInt($("limitNote").textContent, 10) || 10;
+    renderQuota(Math.max(0, limit - remaining), limit, remaining);
+    toast(remaining > 0 ? "Looks great. In a real event, this would post to the album." : "Nice shot. That is your last one in the demo.");
+    resetCapture();
+    return;
+  }
+
   sendBtn.disabled = true;
   retakeBtn.disabled = true;
   const original = sendBtn.textContent;
