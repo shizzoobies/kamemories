@@ -747,6 +747,36 @@ body.cinema .veil {
 .asst-form .cur-input { flex: 1; }
 .asst-note { color: var(--faint); font-size: 0.74rem; margin: 0; padding: 0 16px 12px; }
 
+/* New client event wizard */
+.wiz-card { max-width: 540px; }
+.wiz-steps { display: flex; gap: 7px; margin: 2px 0 22px; }
+.wiz-dot { flex: 1; height: 4px; border-radius: 2px; background: var(--line); transition: background 0.2s ease; }
+.wiz-dot.on { background: var(--silver); }
+.wiz-h { margin: 0 0 4px; font-size: 1.5rem; }
+.wiz-step .auth-sub { margin-top: 0; }
+.wiz-plans { display: flex; flex-direction: column; gap: 10px; }
+.wiz-plan { display: block; width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 13px 15px; cursor: pointer; transition: border-color 0.18s ease, background 0.18s ease; }
+.wiz-plan:hover { border-color: var(--silver); }
+.wiz-plan.on { border-color: var(--silver); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--silver); }
+.wiz-plan-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.wiz-plan-name { font-family: "Playfair Display", serif; font-size: 1.1rem; color: var(--ink); }
+.wiz-plan-price { color: var(--silver); font-weight: 600; }
+.wiz-plan-meta { color: var(--muted); font-size: 0.83rem; margin-top: 4px; }
+.wiz-photos { margin-top: 18px; }
+.field-label { display: block; font-size: 0.82rem; color: var(--muted); margin-bottom: 8px; letter-spacing: 0.04em; }
+.wiz-photo-row { display: flex; align-items: center; gap: 10px; }
+.wiz-photo-row input { width: 92px; text-align: center; }
+.wiz-step-btn { width: 42px; height: 42px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 1.3rem; line-height: 1; cursor: pointer; }
+.wiz-step-btn:hover { border-color: var(--silver); }
+.wiz-hint { color: var(--faint); font-size: 0.83rem; line-height: 1.55; margin: 12px 0 0; }
+.wiz-review { display: flex; flex-direction: column; }
+.wiz-review-row { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line-soft); font-size: 0.9rem; }
+.wiz-review-row span:first-child { color: var(--muted); }
+.wiz-review-row span:last-child { color: var(--ink); text-align: right; font-weight: 500; }
+.wiz-check { display: flex; align-items: center; gap: 8px; margin-top: 16px; color: var(--muted); font-size: 0.88rem; cursor: pointer; }
+.wiz-nav { display: flex; gap: 10px; margin-top: 22px; }
+.wiz-nav .btn { flex: 1; justify-content: center; }
+
 /* Orchestrated load reveal */
 .reveal { opacity: 0; transform: translateY(18px); animation: cine-rise 1s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; animation-delay: calc(var(--d, 0) * 0.12s + 0.15s); }
 @keyframes cine-rise { to { opacity: 1; transform: none; } }

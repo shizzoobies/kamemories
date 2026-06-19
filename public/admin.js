@@ -245,24 +245,123 @@ $("dDelete").addEventListener("click", async () => {
   } catch (err) { toast("No connection.", true); }
 });
 
-// ---- Create ----
+// ---- New client event wizard ----
 function openModal(id) { $(id).classList.add("show"); }
 function closeModal(id) { $(id).classList.remove("show"); }
+function slugify(s) { return (s || "").toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40); }
 
-$("newBtn").addEventListener("click", () => { setMsg("createMsg", "", false); openModal("createModal"); });
-$("createClose").addEventListener("click", () => closeModal("createModal"));
-$("createModal").addEventListener("click", (e) => { if (e.target.id === "createModal") closeModal("createModal"); });
+const PLAN_INFO = {
+  intimate: { name: "Intimate", price: "$49", guests: "Up to 75 guests", photos: 10, hint: "Intimate covers up to 75 guests. 10 photos each keeps the gallery curated and is plenty for most." },
+  signature: { name: "Signature", price: "$99", guests: "Up to 200 guests", photos: 20, hint: "Signature covers up to 200 guests. 20 photos each is a generous default; most weddings never reach it." },
+  grand: { name: "Grand", price: "$149", guests: "Unlimited guests", photos: 30, hint: "Grand has no guest cap. 30 photos each suits big, photo-happy celebrations." },
+};
+const WIZ_LAST = 3;
+let wizStep = 0;
+let wizPlan = "signature";
+let wizLimitTouched = false;
 
-$("createForm").addEventListener("submit", async (e) => {
+function openWizard(prefill) {
+  prefill = prefill || {};
+  wizStep = 0;
+  wizPlan = prefill.plan && PLAN_INFO[prefill.plan] ? prefill.plan : "signature";
+  wizLimitTouched = !!prefill.daily_limit;
+  $("wName").value = prefill.name || "";
+  $("wEmail").value = prefill.email || "";
+  $("wDate").value = prefill.event_date || "";
+  $("wVenue").value = prefill.venue || "";
+  $("wSlug").value = prefill.slug || "";
+  $("wLimit").value = prefill.daily_limit || PLAN_INFO[wizPlan].photos;
+  $("wActive").checked = true;
+  setMsg("wizMsg", "", false);
+  renderWizPlans();
+  showWizStep();
+  openModal("wizModal");
+  setTimeout(() => $("wName").focus(), 60);
+}
+
+function renderWizPlans() {
+  const wrap = $("wizPlans");
+  wrap.innerHTML = "";
+  Object.keys(PLAN_INFO).forEach((key) => {
+    const p = PLAN_INFO[key];
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "wiz-plan" + (key === wizPlan ? " on" : "");
+    b.innerHTML = '<div class="wiz-plan-top"><span class="wiz-plan-name">' + p.name + '</span><span class="wiz-plan-price">' + p.price + '</span></div>' +
+      '<div class="wiz-plan-meta">' + p.guests + ' &middot; ' + p.photos + ' photos per guest, daily</div>';
+    b.addEventListener("click", () => {
+      wizPlan = key;
+      if (!wizLimitTouched) $("wLimit").value = p.photos;
+      renderWizPlans();
+    });
+    wrap.appendChild(b);
+  });
+}
+
+function showWizStep() {
+  document.querySelectorAll(".wiz-step").forEach((s) => { s.hidden = (+s.dataset.step !== wizStep); });
+  const dots = $("wizSteps");
+  dots.innerHTML = "";
+  for (let i = 0; i <= WIZ_LAST; i++) { const d = document.createElement("span"); d.className = "wiz-dot" + (i <= wizStep ? " on" : ""); dots.appendChild(d); }
+  $("wizBack").style.visibility = wizStep === 0 ? "hidden" : "visible";
+  $("wizNext").style.display = wizStep === WIZ_LAST ? "none" : "";
+  $("wizCreate").style.display = wizStep === WIZ_LAST ? "" : "none";
+  if (wizStep === 2) $("wLimitHint").textContent = PLAN_INFO[wizPlan].hint;
+  if (wizStep === WIZ_LAST) renderWizReview();
+}
+
+function wizValidate() {
+  if (wizStep === 0) {
+    if (!$("wName").value.trim()) { setMsg("wizMsg", "Add the couple or event name.", true); return false; }
+    if (!/.+@.+\..+/.test($("wEmail").value.trim())) { setMsg("wizMsg", "Add a valid client email.", true); return false; }
+  }
+  setMsg("wizMsg", "", false);
+  return true;
+}
+
+function wizAdvance() {
+  if (!wizValidate()) return;
+  if (wizStep === 0 && !$("wSlug").value.trim()) $("wSlug").value = slugify($("wName").value);
+  if (wizStep < WIZ_LAST) { wizStep++; showWizStep(); }
+}
+
+function renderWizReview() {
+  const slug = ($("wSlug").value.trim() || slugify($("wName").value)) || "event";
+  const rows = [
+    ["Couple", $("wName").value.trim()],
+    ["Client", $("wEmail").value.trim()],
+    ["Plan", PLAN_INFO[wizPlan].name],
+    ["Photos per guest", $("wLimit").value + " daily"],
+    ["Address", slug + ".kamemories.com"],
+    ["Date", $("wDate").value.trim() || "Not set"],
+    ["Venue", $("wVenue").value.trim() || "Not set"],
+  ];
+  $("wizReview").innerHTML = rows.map((r) => '<div class="wiz-review-row"><span>' + esc(r[0]) + '</span><span>' + esc(r[1]) + '</span></div>').join("");
+}
+
+$("newBtn").addEventListener("click", () => openWizard());
+$("wizClose").addEventListener("click", () => closeModal("wizModal"));
+$("wizModal").addEventListener("click", (e) => { if (e.target.id === "wizModal") closeModal("wizModal"); });
+$("wizBack").addEventListener("click", () => { if (wizStep > 0) { wizStep--; showWizStep(); } });
+$("wizNext").addEventListener("click", wizAdvance);
+$("wLimit").addEventListener("input", () => { wizLimitTouched = true; });
+$("wMinus").addEventListener("click", () => { const v = parseInt($("wLimit").value, 10) || 1; $("wLimit").value = Math.max(1, v - 1); wizLimitTouched = true; });
+$("wPlus").addEventListener("click", () => { const v = parseInt($("wLimit").value, 10) || 0; $("wLimit").value = Math.min(1000, v + 1); wizLimitTouched = true; });
+
+$("wizForm").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const btn = $("createSubmit");
+  if (wizStep !== WIZ_LAST) { wizAdvance(); return; } // Enter advances on earlier steps
+  const btn = $("wizCreate");
   btn.disabled = true;
   const body = {
-    email: $("cEmail").value.trim(),
-    name: $("cName").value.trim(),
-    slug: $("cSlug").value.trim(),
-    plan: $("cPlan").value || null,
-    status: $("cStatus").value,
+    email: $("wEmail").value.trim(),
+    name: $("wName").value.trim(),
+    slug: $("wSlug").value.trim(),
+    plan: wizPlan,
+    status: $("wActive").checked ? "active" : "draft",
+    daily_limit: parseInt($("wLimit").value, 10) || PLAN_INFO[wizPlan].photos,
+    event_date: $("wDate").value.trim(),
+    venue: $("wVenue").value.trim(),
   };
   try {
     const r = await fetch("/api/admin/events", {
@@ -270,15 +369,14 @@ $("createForm").addEventListener("submit", async (e) => {
       headers: { "content-type": "application/json" }, body: JSON.stringify(body),
     });
     const d = await r.json();
-    if (!r.ok) { setMsg("createMsg", d.message || "Could not create the event.", true); return; }
-    closeModal("createModal");
-    $("createForm").reset();
+    if (!r.ok) { setMsg("wizMsg", d.message || "Could not create the event.", true); return; }
+    closeModal("wizModal");
     toast("Event created.");
     const o = await fetch("/api/admin/overview", { credentials: "same-origin" });
     if (o.ok) { data = await o.json(); renderStats(); renderClients(); }
     location.hash = "#/e/" + encodeURIComponent(d.event.id);
   } catch (err) {
-    setMsg("createMsg", "No connection. Try again.", true);
+    setMsg("wizMsg", "No connection. Try again.", true);
   } finally {
     btn.disabled = false;
   }
