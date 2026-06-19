@@ -752,6 +752,8 @@ body.cinema .veil {
 .cine-tier-list li { position: relative; padding: 10px 0 10px 24px; border-top: 1px solid var(--cine-line); color: var(--cine-dim); font-size: 0.95rem; line-height: 1.45; }
 .cine-tier-list li:first-child { border-top: 0; }
 .cine-tier-list li::before { content: ""; position: absolute; left: 2px; top: 17px; width: 6px; height: 6px; border: 1px solid var(--silver); transform: rotate(45deg); }
+.cine-tier-list li.cine-tier-lead { padding-left: 0; color: var(--cine-ink); font-weight: 600; }
+.cine-tier-list li.cine-tier-lead::before { display: none; }
 .cine-tier-cta { width: 100%; justify-content: center; }
 .cine-tier.featured .cine-tier-cta { background: var(--cine-ink); color: #0a1322; border-color: var(--cine-ink); }
 .cine-tier.featured .cine-tier-cta:hover { background: transparent; color: var(--cine-ink); }
