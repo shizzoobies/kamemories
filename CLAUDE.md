@@ -35,8 +35,9 @@ kamemories generalizes that idea into a product you can sell access to.
   strip and implies approval. Pending media is private. An event can set
   `auto_approve` so uploads land approved (public at once, no review); switching
   it on also publishes any photos still pending.
-- Guests can like (vote for) public photos, one like per anonymous device (gid),
-  toggleable. The public gallery can sort by most liked. Likes live in `likes`.
+- Guests can like (vote for) the host's featured photos, one like per anonymous
+  device (gid), toggleable. The event home strip ranks featured by most loved.
+  The uncurated gallery is not voteable. Likes live in `likes`.
 - Photos only. Per-guest daily upload cap, server enforced via an anonymous
   device cookie (gid), scoped per event. Quota day rolls over at the event's
   `rollover_h` on its `event_tz`.
@@ -123,7 +124,7 @@ Event plane ({slug}.kamemories.com), scoped to the resolved event:
 - GET `/api/public/photos?scope=gallery|featured&sort=top|recent` approved (or
   featured) only; each photo carries a `likes` count and a `liked` flag for the
   current device.
-- POST `/api/public/photos/:id/like` toggles this device's like on an approved
+- POST `/api/public/photos/:id/like` toggles this device's like on a featured
   photo of this event. Returns {liked, likes}. Sets the gid cookie.
 - GET `/media/:key` public only for this event's approved photos, else 401.
 

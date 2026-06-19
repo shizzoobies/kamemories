@@ -183,8 +183,51 @@ function startCinema() {
   );
 }
 
-// ---- Featured strip ----
+// ---- Featured strip (the host's picks, which guests can vote on) ----
 const STRIP_MAX = 15;
+
+// One vote per device, toggleable. Optimistic: flip the heart now, reconcile with
+// the server's count, and roll back on failure. Cards are duplicated for the
+// looping glide, so paint every element that shares this photo's id.
+const HEART = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.3s-6.9-4.2-9.3-8.5C1.3 9.1 2.6 6 5.5 5.5c1.9-.3 3.5.6 4.6 2 .5.6.9 1.3 1.9 1.3s1.4-.7 1.9-1.3c1.1-1.4 2.7-2.3 4.6-2 2.9.5 4.2 3.6 2.8 6.3-2.4 4.3-9.3 8.5-9.3 8.5z"/></svg>';
+
+function paintLike(p) {
+  const liked = !!p.liked;
+  document.querySelectorAll('[data-like-id="' + p.id + '"]').forEach((btn) => {
+    btn.classList.toggle("liked", liked);
+    btn.setAttribute("aria-pressed", liked ? "true" : "false");
+    const n = btn.querySelector(".like-n");
+    if (n) n.textContent = p.likes > 0 ? p.likes : "";
+  });
+}
+
+async function toggleLike(p) {
+  const wasLiked = !!p.liked, wasLikes = p.likes || 0;
+  p.liked = wasLiked ? 0 : 1;
+  p.likes = Math.max(0, wasLikes + (wasLiked ? -1 : 1));
+  paintLike(p);
+  try {
+    const r = await fetch("/api/public/photos/" + encodeURIComponent(p.id) + "/like", { method: "POST" });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok) { p.liked = d.liked ? 1 : 0; p.likes = d.likes; }
+    else { p.liked = wasLiked ? 1 : 0; p.likes = wasLikes; }
+  } catch {
+    p.liked = wasLiked ? 1 : 0; p.likes = wasLikes;
+  }
+  paintLike(p);
+}
+
+function buildVoteButton(p) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "like-btn" + (p.liked ? " liked" : "");
+  btn.dataset.likeId = p.id;
+  btn.setAttribute("aria-pressed", p.liked ? "true" : "false");
+  btn.setAttribute("aria-label", "Vote for this photo");
+  btn.innerHTML = HEART + '<span class="like-n">' + (p.likes > 0 ? p.likes : "") + "</span>";
+  btn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); toggleLike(p); });
+  return btn;
+}
 
 function makeStripCard(p) {
   const card = document.createElement("a");
@@ -196,6 +239,7 @@ function makeStripCard(p) {
   img.loading = "lazy";
   img.alt = p.caption || "A photo from the celebration";
   card.appendChild(img);
+  card.appendChild(buildVoteButton(p));
 
   const label = p.caption || p.guest_name;
   if (label) {
@@ -236,7 +280,7 @@ function autoGlide(strip, loopWidth) {
 async function loadStrip() {
   let photos = [];
   try {
-    const r = await fetch("/api/public/photos?scope=featured");
+    const r = await fetch("/api/public/photos?scope=featured&sort=top");
     const data = await r.json();
     photos = data.photos || [];
   } catch {}

@@ -15,9 +15,6 @@ function fmtTime(ms) {
 const PAGE = 60;
 let cursor = 0;
 let io = null;
-let sort = "recent"; // "recent" (latest) or "top" (most loved)
-
-const HEART = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.3s-6.9-4.2-9.3-8.5C1.3 9.1 2.6 6 5.5 5.5c1.9-.3 3.5.6 4.6 2 .5.6.9 1.3 1.9 1.3s1.4-.7 1.9-1.3c1.1-1.4 2.7-2.3 4.6-2 2.9.5 4.2 3.6 2.8 6.3-2.4 4.3-9.3 8.5-9.3 8.5z"/></svg>';
 
 async function loadEventName() {
   try {
@@ -33,60 +30,13 @@ async function loadEventName() {
 
 async function load() {
   try {
-    const r = await fetch("/api/public/photos?scope=gallery&sort=" + sort);
+    const r = await fetch("/api/public/photos?scope=gallery");
     const data = await r.json();
     photos = data.photos || [];
   } catch {
     photos = [];
   }
   render();
-}
-
-function setSort(next) {
-  if (next === sort) return;
-  sort = next;
-  document.querySelectorAll("#gallerySort button").forEach((b) => b.classList.toggle("on", b.dataset.sort === sort));
-  load();
-}
-
-// One vote per device, toggleable. Optimistic: flip the heart now, reconcile with
-// the server's authoritative count, and roll back if the request fails.
-function paintLike(p) {
-  const liked = !!p.liked;
-  document.querySelectorAll('[data-like-id="' + p.id + '"]').forEach((btn) => {
-    btn.classList.toggle("liked", liked);
-    btn.setAttribute("aria-pressed", liked ? "true" : "false");
-    const n = btn.querySelector(".like-n");
-    if (n) n.textContent = p.likes > 0 ? p.likes : "";
-  });
-}
-
-async function toggleLike(p) {
-  const wasLiked = !!p.liked, wasLikes = p.likes || 0;
-  p.liked = wasLiked ? 0 : 1;
-  p.likes = Math.max(0, wasLikes + (wasLiked ? -1 : 1));
-  paintLike(p);
-  try {
-    const r = await fetch("/api/public/photos/" + encodeURIComponent(p.id) + "/like", { method: "POST" });
-    const d = await r.json().catch(() => ({}));
-    if (r.ok) { p.liked = d.liked ? 1 : 0; p.likes = d.likes; }
-    else { p.liked = wasLiked ? 1 : 0; p.likes = wasLikes; }
-  } catch {
-    p.liked = wasLiked ? 1 : 0; p.likes = wasLikes;
-  }
-  paintLike(p);
-}
-
-function buildLikeButton(p) {
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.className = "like-btn" + (p.liked ? " liked" : "");
-  btn.dataset.likeId = p.id;
-  btn.setAttribute("aria-pressed", p.liked ? "true" : "false");
-  btn.setAttribute("aria-label", "Love this photo");
-  btn.innerHTML = HEART + '<span class="like-n">' + (p.likes > 0 ? p.likes : "") + "</span>";
-  btn.addEventListener("click", (e) => { e.stopPropagation(); e.preventDefault(); toggleLike(p); });
-  return btn;
 }
 
 function render() {
@@ -135,7 +85,6 @@ function buildTile(p, i) {
   img.loading = "lazy";
   img.alt = p.caption || "Event photo";
   tile.appendChild(img);
-  tile.appendChild(buildLikeButton(p));
 
   if (p.caption) {
     const cap = document.createElement("div");
@@ -173,13 +122,6 @@ function openLightbox(i) {
   bits.push(fmtTime(p.created_at));
   $("lbMeta").textContent = bits.join("  .  ");
   $("lbDownload").href = fullUrl(p);
-
-  const lbLike = $("lbLike");
-  lbLike.dataset.likeId = p.id;
-  lbLike.classList.toggle("liked", !!p.liked);
-  lbLike.setAttribute("aria-pressed", p.liked ? "true" : "false");
-  lbLike.querySelector(".like-n").textContent = p.likes > 0 ? p.likes : "";
-
   $("lightbox").classList.add("show");
 }
 
@@ -190,9 +132,6 @@ function closeLightbox() {
   $("lbContent").innerHTML = "";
 }
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeLightbox(); });
-
-$("lbLike").addEventListener("click", (e) => { e.stopPropagation(); if (lbIndex >= 0) toggleLike(photos[lbIndex]); });
-document.querySelectorAll("#gallerySort button").forEach((b) => b.addEventListener("click", () => setSort(b.dataset.sort)));
 
 loadEventName();
 load();

@@ -995,13 +995,14 @@ async function handlePublicPhotos(request, env, event) {
   return json({ photos: results || [] });
 }
 
-// A guest "likes" (votes for) a public photo. One like per anonymous device,
-// toggleable. Only approved photos in this event can be liked.
+// A guest "likes" (votes for) a featured photo. One like per anonymous device,
+// toggleable. Only the host's featured picks are voteable, so the gallery's
+// uncurated photos cannot be liked.
 async function handleLike(request, env, event, uploadId) {
   const { gid, setCookie } = await ensureGid(request);
   const headers = setCookie ? { "set-cookie": setCookie } : {};
   const u = await env.DB.prepare(
-    "SELECT id FROM uploads WHERE id = ? AND event_id = ? AND approved = 1"
+    "SELECT id FROM uploads WHERE id = ? AND event_id = ? AND featured = 1"
   ).bind(uploadId, event.id).first();
   if (!u) return json({ error: "notfound", message: "Photo not found." }, 404, headers);
   const existing = await env.DB.prepare(
