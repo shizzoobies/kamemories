@@ -1343,6 +1343,31 @@ async function adminUpdateCode(request, env, id) {
   return json({ ok: true, id, discount_pct: newPct, payout_method: payoutMethod, payout_id: payoutId, active: vc.active });
 }
 
+// Permanently remove a deactivated code and its history. Blocked while it is live
+// or still owes commission, so nothing in use or unpaid is lost by accident.
+async function adminDeleteCode(request, env, id) {
+  const gate = await requireAdmin(request, env);
+  if (gate.error) return gate.error;
+  const vc = await env.DB.prepare("SELECT id, active, stripe_coupon FROM vendor_codes WHERE id = ?").bind(id).first();
+  if (!vc) return json({ error: "notfound", message: "Code not found." }, 404);
+  if (vc.active) return json({ error: "active", message: "Deactivate the code before removing it." }, 409);
+  const sums = await env.DB.prepare(
+    `SELECT (SELECT COALESCE(SUM(commission_cents), 0) FROM vendor_redemptions WHERE code_id = ?) AS commission,
+            (SELECT COALESCE(SUM(amount_cents), 0) FROM vendor_payouts WHERE code_id = ?) AS paid`
+  ).bind(id, id).first();
+  const owed = Math.max(0, (sums.commission || 0) - (sums.paid || 0));
+  if (owed > 0) return json({ error: "owed", message: `This code still owes $${(owed / 100).toFixed(2)}. Record the payout first, then remove it.` }, 409);
+
+  // Delete any payout receipts from R2, then the rows, then the Stripe coupon.
+  const { results: payouts } = await env.DB.prepare("SELECT receipt_key FROM vendor_payouts WHERE code_id = ?").bind(id).all();
+  for (const p of (payouts || [])) { if (p.receipt_key) { try { await env.BUCKET.delete(p.receipt_key); } catch (e) {} } }
+  await env.DB.prepare("DELETE FROM vendor_payouts WHERE code_id = ?").bind(id).run();
+  await env.DB.prepare("DELETE FROM vendor_redemptions WHERE code_id = ?").bind(id).run();
+  await env.DB.prepare("DELETE FROM vendor_codes WHERE id = ?").bind(id).run();
+  if (vc.stripe_coupon) { try { await stripeDelete(env, "coupons/" + vc.stripe_coupon); } catch (e) {} }
+  return json({ ok: true, id });
+}
+
 const RECEIPT_MAX_BYTES = 10 * 1024 * 1024;
 
 // Record a payout against a vendor's owed commission, with an optional receipt
@@ -1530,6 +1555,7 @@ export default {
         if (path === "/api/admin/codes" && method === "POST") return adminCreateCode(request, env);
         const adminCode = path.match(/^\/api\/admin\/codes\/([^/]+)$/);
         if (adminCode && method === "PATCH") return adminUpdateCode(request, env, decodeURIComponent(adminCode[1]));
+        if (adminCode && method === "DELETE") return adminDeleteCode(request, env, decodeURIComponent(adminCode[1]));
         const adminPayouts = path.match(/^\/api\/admin\/codes\/([^/]+)\/payouts$/);
         if (adminPayouts) {
           const cid = decodeURIComponent(adminPayouts[1]);

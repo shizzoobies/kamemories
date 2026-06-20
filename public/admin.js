@@ -675,11 +675,14 @@ function renderCodes() {
         '<button class="btn code-edit" type="button">Edit</button>' +
         '<button class="btn code-pay" type="button">Mark paid</button>' +
         '<button class="btn code-toggle" type="button">' + (c.active ? "Deactivate" : "Activate") + '</button>' +
+        (!c.active ? '<button class="btn code-remove" type="button">Remove</button>' : '') +
       '</div>';
     card.querySelector(".code-copy").addEventListener("click", () => copyCode(c.code));
     card.querySelector(".code-edit").addEventListener("click", () => openEditCode(c));
     card.querySelector(".code-pay").addEventListener("click", () => openPayout(c));
     card.querySelector(".code-toggle").addEventListener("click", (e) => toggleCode(c, e.currentTarget));
+    const rm = card.querySelector(".code-remove");
+    if (rm) rm.addEventListener("click", () => removeCode(c));
     list.appendChild(card);
   }
 }
@@ -698,6 +701,19 @@ async function toggleCode(c, btn) {
     toast(c.active ? "Code is live." : "Code switched off.");
   } catch (e) { toast("No connection.", true); }
   finally { btn.disabled = false; }
+}
+
+async function removeCode(c) {
+  if (!confirm("Remove " + c.code + " permanently? This deletes its history and cannot be undone.")) return;
+  try {
+    const r = await fetch("/api/admin/codes/" + encodeURIComponent(c.id), { method: "DELETE", credentials: "same-origin" });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { toast(d.message || "Could not remove the code.", true); return; }
+    codes = codes.filter((x) => x.id !== c.id);
+    renderCodes();
+    recomputeOwed();
+    toast("Code removed.");
+  } catch (e) { toast("No connection.", true); }
 }
 
 function cdSplit() {

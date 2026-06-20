@@ -886,6 +886,8 @@ body.cinema .veil {
 .cd-split { color: var(--silver); font-size: 0.86rem; margin: 2px 0 0; }
 .code-actions { display: flex; gap: 7px; flex-wrap: wrap; }
 .code-edit, .code-pay { padding: 7px 13px; font-size: 0.82rem; }
+.code-remove { padding: 7px 13px; font-size: 0.82rem; color: var(--danger); border-color: rgba(224, 145, 138, 0.4); background: none; }
+.code-remove:hover { background: rgba(224, 145, 138, 0.12); border-color: var(--danger); }
 .code-owed.due { color: #e8b873; }
 .code-payvia { color: var(--faint); font-size: 0.78rem; }
 .po-via { color: var(--silver-bright); font-size: 0.92rem; font-weight: 600; margin: 8px 0 0; }
