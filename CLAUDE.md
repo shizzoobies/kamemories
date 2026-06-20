@@ -143,15 +143,21 @@ for navigations.
 ## D1 schema
 
 `organizers`, `login_tokens` (token_hash), `sessions` (id_hash), `events`,
-`uploads`, `likes`, `vendor_codes`, `vendor_redemptions`, `vendor_payouts`.
-Tokens and session ids are stored as sha-256 hashes, never raw. `uploads` is scoped by `event_id`; R2
+`uploads`, `likes`, `vendor_codes`, `vendor_redemptions`, `vendor_payouts`,
+`payments`, `package_links`. Tokens and session ids are stored as sha-256
+hashes, never raw. `uploads` is scoped by `event_id`; R2
 key format is `{event_id}/{day}/{uuid}.{ext}` and the thumbnail is the same with
 a `.t` before the extension. `likes` (primary key `upload_id` + `gid`) holds one
 vote per anonymous device per photo. `events.auto_approve` gates instant
 publishing. `vendor_codes` are referral discount codes (a Stripe coupon +
 promotion code); `vendor_redemptions` logs each paid use for commission owed;
 `vendor_payouts` records what the operator has paid a vendor (with an optional
-receipt stored in R2 under `payouts/`), so owed = commission minus payouts. See
+receipt stored in R2 under `payouts/`), so owed = commission minus payouts.
+`payments` is the revenue ledger: one row per completed Stripe checkout (an event
+purchase or a package link), written by the webhook (idempotent on the session),
+so `/admin` totals money in by package. `package_links` are operator-made Stripe
+Payment Links for selling a package (standard plan or custom name + price);
+paying one auto-creates a hidden paid draft event for the operator to finish. See
 `schema.sql`.
 
 ## Worker constants

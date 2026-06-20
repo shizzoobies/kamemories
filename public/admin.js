@@ -102,6 +102,10 @@ async function boot() {
   renderStats();
   renderClients();
   loadCodes();
+  loadRevenue();
+  loadPackageLinks();
+  setupCollapse("revenueColhead", "revenueWrap", "kmRevenueOpen");
+  setupCollapse("linksColhead", "linksWrap", "kmLinksOpen");
   setupCollapse("codesColhead", "codesWrap", "kmCodesOpen");
   setupCollapse("clientsColhead", "clientsWrap", "kmClientsOpen");
   if (data.assistant === false) $("asstNote").textContent = "The assistant is not switched on yet. Add the ANTHROPIC_API_KEY secret and it will appear here.";
@@ -901,5 +905,156 @@ function setupCollapse(colheadId, wrapId, key) {
   if (h2) { h2.style.cursor = "pointer"; h2.addEventListener("click", toggle); }
   apply();
 }
+
+// ---- Revenue ----
+let revenue = null;
+async function loadRevenue() {
+  try {
+    const r = await fetch("/api/admin/revenue", { credentials: "same-origin" });
+    if (!r.ok) return;
+    revenue = await r.json();
+    renderRevenue();
+  } catch (e) {}
+}
+function renderRevenue() {
+  if (!revenue) return;
+  const t = revenue.total || { amount_cents: 0, count: 0 };
+  $("revenueTotal").textContent = money(t.amount_cents) + " in" + (t.count ? " · " + t.count + (t.count === 1 ? " sale" : " sales") : "");
+  const bd = $("revenueBreakdown");
+  bd.innerHTML = "";
+  if (!(revenue.by_package || []).length) {
+    bd.innerHTML = '<p class="admin-empty">No payments yet. Sales show here as customers pay.</p>';
+  } else {
+    for (const p of revenue.by_package) {
+      const chip = document.createElement("div");
+      chip.className = "rev-chip";
+      chip.innerHTML = '<div class="rev-chip-amt">' + money(p.amount) + '</div>' +
+        '<div class="rev-chip-label">' + esc(p.label || "Other") + '</div>' +
+        '<div class="rev-chip-n">' + (p.n || 0) + (p.n === 1 ? " sale" : " sales") + '</div>';
+      bd.appendChild(chip);
+    }
+  }
+  const rec = $("revenueRecent");
+  const recH = document.querySelector(".rev-recent-h");
+  rec.innerHTML = "";
+  if (!(revenue.recent || []).length) { rec.style.display = "none"; if (recH) recH.style.display = "none"; return; }
+  rec.style.display = ""; if (recH) recH.style.display = "";
+  for (const p of revenue.recent) {
+    const row = document.createElement("div");
+    row.className = "rev-row";
+    const via = p.source === "package_link" ? "package link" : (p.event_name ? esc(p.event_name) : "event checkout");
+    row.innerHTML =
+      '<div class="rev-row-main"><strong>' + esc(p.label || "Payment") + '</strong>' +
+        '<span class="rev-row-via">' + via + ((p.discount_cents || 0) > 0 ? " · " + money(p.discount_cents) + " off" : "") + '</span></div>' +
+      '<div class="rev-row-amt">' + money(p.amount_cents) + '</div>' +
+      '<div class="rev-row-date">' + fmtDate(p.created_at) + '</div>';
+    rec.appendChild(row);
+  }
+}
+
+// ---- Package links ----
+let pkgLinks = [];
+async function loadPackageLinks() {
+  try {
+    const r = await fetch("/api/admin/package-links", { credentials: "same-origin" });
+    if (!r.ok) return;
+    const d = await r.json();
+    pkgLinks = d.links || [];
+    renderPackageLinks();
+  } catch (e) {}
+}
+function renderPackageLinks() {
+  const list = $("linksList");
+  if (!list) return;
+  list.innerHTML = "";
+  if (!pkgLinks.length) { list.innerHTML = '<p class="admin-empty">No package links yet. Create one to sell a package by link.</p>'; return; }
+  for (const l of pkgLinks) {
+    const card = document.createElement("div");
+    card.className = "link-card" + (l.active ? "" : " off");
+    card.innerHTML =
+      '<div class="link-id"><strong class="link-label">' + esc(l.label) + '</strong>' +
+        '<span class="link-amt">' + money(l.amount_cents) + (l.plan ? ' · ' + esc(PLAN_LABEL[l.plan] || l.plan) + ' features' : '') + '</span></div>' +
+      '<div class="link-url-row"><span class="link-url">' + esc(l.url || "") + '</span>' +
+        '<button class="code-copy link-copy" type="button" title="Copy link" aria-label="Copy link">' + COPY_ICON + '</button></div>';
+    const actions = document.createElement("div");
+    actions.className = "code-actions";
+    const open = document.createElement("a");
+    open.className = "btn link-open"; open.href = l.url || "#"; open.target = "_blank"; open.rel = "noopener"; open.textContent = "Open";
+    const tgl = document.createElement("button");
+    tgl.type = "button"; tgl.className = "btn code-toggle"; tgl.textContent = l.active ? "Deactivate" : "Activate";
+    tgl.addEventListener("click", () => togglePackageLink(l, tgl));
+    actions.append(open, tgl);
+    card.appendChild(actions);
+    const cp = card.querySelector(".link-copy");
+    if (cp) cp.addEventListener("click", () => copyLink(l.url));
+    list.appendChild(card);
+  }
+}
+async function copyLink(url) {
+  try { await navigator.clipboard.writeText(url); toast("Link copied."); }
+  catch (e) { toast("Could not copy. Select the link to copy it.", true); }
+}
+async function togglePackageLink(l, btn) {
+  btn.disabled = true;
+  try {
+    const r = await fetch("/api/admin/package-links/" + encodeURIComponent(l.id), {
+      method: "PATCH", credentials: "same-origin",
+      headers: { "content-type": "application/json" }, body: JSON.stringify({ active: l.active ? 0 : 1 }),
+    });
+    const d = await r.json();
+    if (!r.ok) { toast(d.message || "Could not update.", true); return; }
+    l.active = d.active; renderPackageLinks();
+    toast(l.active ? "Link is live." : "Link switched off.");
+  } catch (e) { toast("No connection.", true); }
+  finally { btn.disabled = false; }
+}
+function lkToggleCustom() {
+  const custom = $("lkPlan").value === "custom";
+  $("lkCustom").style.display = custom ? "" : "none";
+  $("lkNote").style.display = custom ? "" : "none";
+}
+$("newLinkBtn").addEventListener("click", () => {
+  $("lkPlan").value = "signature"; $("lkLabel").value = ""; $("lkAmount").value = "";
+  setMsg("linkMsg", "", false); $("linkDone").style.display = "none"; $("linkDone").innerHTML = "";
+  $("lkCreate").style.display = ""; lkToggleCustom(); openModal("linkModal");
+});
+$("linkClose").addEventListener("click", () => closeModal("linkModal"));
+$("linkModal").addEventListener("click", (e) => { if (e.target.id === "linkModal") closeModal("linkModal"); });
+$("lkPlan").addEventListener("change", lkToggleCustom);
+$("linkForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = $("lkCreate");
+  const sel = $("lkPlan").value;
+  let body;
+  if (sel === "custom") {
+    body = { custom: true, plan: "grand", label: $("lkLabel").value.trim(), amount_cents: Math.round((parseFloat($("lkAmount").value) || 0) * 100) };
+    if (!body.label) { setMsg("linkMsg", "Name the package.", true); return; }
+    if (!(body.amount_cents >= 100)) { setMsg("linkMsg", "Enter a price of at least $1.", true); return; }
+  } else {
+    body = { plan: sel };
+  }
+  btn.disabled = true;
+  setMsg("linkMsg", "Creating the link in Stripe...", false);
+  try {
+    const r = await fetch("/api/admin/package-links", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    const d = await r.json();
+    if (!r.ok) { setMsg("linkMsg", d.message || "Could not create the link.", true); return; }
+    pkgLinks.unshift(d.link); renderPackageLinks();
+    setMsg("linkMsg", "", false);
+    const done = $("linkDone");
+    done.style.display = "block";
+    done.innerHTML = '<div class="link-done-h">Link ready, send it to your customer</div><div class="link-done-url">' + esc(d.link.url) + '</div>';
+    const cp = document.createElement("button");
+    cp.type = "button"; cp.className = "btn primary"; cp.textContent = "Copy link";
+    cp.addEventListener("click", () => copyLink(d.link.url));
+    done.appendChild(cp);
+    $("lkCreate").style.display = "none";
+    toast("Package link created.");
+  } catch (err) {
+    setMsg("linkMsg", "No connection. Try again.", true);
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 boot();

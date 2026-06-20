@@ -1183,21 +1183,69 @@ async function handleStripeWebhook(request, env) {
   if (evt.type === "checkout.session.completed") {
     const s = evt.data && evt.data.object;
     const meta = (s && s.metadata) || {};
-    const plan = PLANS[meta.plan];
-    if (s && s.payment_status === "paid" && meta.event_id && plan) {
-      const e = await eventById(env, meta.event_id);
-      if (e && !e.paid_at) {
-        await env.DB.prepare(
-          "UPDATE events SET plan = ?, paid_at = ?, status = 'active', daily_limit = ?, stripe_session = ? WHERE id = ?"
-        ).bind(meta.plan, Date.now(), plan.daily, s.id, meta.event_id).run();
-      }
-    }
-    // If a vendor code was used, log the redemption so we can tally commission owed.
     if (s && s.payment_status === "paid") {
+      const plan = PLANS[meta.plan];
+      if (meta.event_id && plan) {
+        // An event purchase: publish it, then record the sale.
+        const e = await eventById(env, meta.event_id);
+        if (e && !e.paid_at) {
+          await env.DB.prepare(
+            "UPDATE events SET plan = ?, paid_at = ?, status = 'active', daily_limit = ?, stripe_session = ? WHERE id = ?"
+          ).bind(meta.plan, Date.now(), plan.daily, s.id, meta.event_id).run();
+        }
+        try { await recordPayment(env, s, { source: "event", eventId: meta.event_id, plan: meta.plan, label: plan.label }); } catch (err) { console.log("[pay] " + (err.message || err)); }
+      } else if (s.payment_link) {
+        // A package link: create a draft event for the buyer, then record the sale.
+        try {
+          const pl = await env.DB.prepare("SELECT * FROM package_links WHERE stripe_link = ?").bind(s.payment_link).first();
+          if (pl) {
+            const evId = await createDraftFromPayment(env, s, pl);
+            await recordPayment(env, s, { source: "package_link", eventId: evId, plan: pl.plan, label: pl.label });
+          }
+        } catch (err) { console.log("[pkg] " + (err.message || err)); }
+      }
+      // If a vendor code was used, log the redemption so we can tally commission owed.
       try { await recordVendorRedemption(env, s); } catch (err) { console.log("[vendor] " + (err.message || err)); }
     }
   }
   return json({ received: true });
+}
+
+// Record a completed checkout in the revenue ledger (idempotent on the session).
+async function recordPayment(env, s, info) {
+  const amount = s.amount_total != null ? s.amount_total : 0;
+  const discount = (s.total_details && s.total_details.amount_discount) || 0;
+  await env.DB.prepare(
+    `INSERT OR IGNORE INTO payments (id, stripe_session, event_id, source, plan, label, amount_cents, discount_cents, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(crypto.randomUUID(), s.id, info.eventId || null, info.source, info.plan || null, info.label || null, amount, discount, Date.now()).run();
+}
+
+// Create a hidden, paid draft event for a package-link buyer, for the operator to
+// finish naming and configuring (it surfaces as a new booking).
+async function createDraftFromPayment(env, s, pl) {
+  const email = ((s.customer_details && s.customer_details.email) || s.customer_email || "").toString().trim().toLowerCase();
+  let org = email ? await env.DB.prepare("SELECT id FROM organizers WHERE email = ?").bind(email).first() : null;
+  if (!org) {
+    const oid = crypto.randomUUID();
+    const addr = isEmail(email) ? email : ("buyer+" + oid.slice(0, 8) + "@kamemories.com");
+    await env.DB.prepare("INSERT INTO organizers (id, email, created_at) VALUES (?, ?, ?)").bind(oid, addr, Date.now()).run();
+    org = { id: oid };
+  }
+  const rawName = (((s.customer_details && s.customer_details.name) || (email ? email.split("@")[0] : "") || pl.label || "New booking").toString()).slice(0, 80) || "New booking";
+  let base = slugify(rawName).slice(0, 30);
+  if (base.length < 2) base = "event";
+  let slug = base;
+  const taken = await env.DB.prepare("SELECT id FROM events WHERE slug = ?").bind(slug).first();
+  if (taken || reservedSet(env).has(slug)) slug = base + "-" + randomToken().slice(0, 4);
+  const plan = PLANS[pl.plan] ? pl.plan : "grand";
+  const id = crypto.randomUUID();
+  const now = Date.now();
+  await env.DB.prepare(
+    `INSERT INTO events (id, organizer_id, slug, name, theme, daily_limit, event_tz, rollover_h, status, plan, paid_at, stripe_session, created_at)
+     VALUES (?, ?, ?, ?, 'midnight-pearl', ?, 'America/New_York', 2, 'draft', ?, ?, ?, ?)`
+  ).bind(id, org.id, slug, rawName, PLANS[plan].daily, plan, now, s.id, now).run();
+  return id;
 }
 
 // ---------------------------------------------------------------------------
@@ -1366,6 +1414,102 @@ async function adminDeleteCode(request, env, id) {
   await env.DB.prepare("DELETE FROM vendor_codes WHERE id = ?").bind(id).run();
   if (vc.stripe_coupon) { try { await stripeDelete(env, "coupons/" + vc.stripe_coupon); } catch (e) {} }
   return json({ ok: true, id });
+}
+
+// ---------------------------------------------------------------------------
+// Revenue and package links (operator only)
+// ---------------------------------------------------------------------------
+
+async function adminRevenue(request, env) {
+  const gate = await requireAdmin(request, env);
+  if (gate.error) return gate.error;
+  const totalRow = await env.DB.prepare(
+    "SELECT COUNT(*) AS n, COALESCE(SUM(amount_cents), 0) AS amount, COALESCE(SUM(discount_cents), 0) AS discount FROM payments"
+  ).first();
+  const { results: byPackage } = await env.DB.prepare(
+    "SELECT label, COUNT(*) AS n, COALESCE(SUM(amount_cents), 0) AS amount FROM payments GROUP BY label ORDER BY amount DESC"
+  ).all();
+  const { results: recent } = await env.DB.prepare(
+    `SELECT p.id, p.label, p.amount_cents, p.discount_cents, p.source, p.created_at, e.name AS event_name
+     FROM payments p LEFT JOIN events e ON e.id = p.event_id
+     ORDER BY p.created_at DESC LIMIT 25`
+  ).all();
+  return json({
+    total: { count: totalRow ? totalRow.n : 0, amount_cents: totalRow ? totalRow.amount : 0, discount_cents: totalRow ? totalRow.discount : 0 },
+    by_package: byPackage || [],
+    recent: recent || [],
+  });
+}
+
+async function adminListPackageLinks(request, env) {
+  const gate = await requireAdmin(request, env);
+  if (gate.error) return gate.error;
+  const { results } = await env.DB.prepare(
+    "SELECT id, label, plan, amount_cents, url, active, created_at FROM package_links ORDER BY created_at DESC"
+  ).all();
+  return json({ links: results || [], billing: billingOn(env), plans: Object.keys(PLANS).map((k) => ({ plan: k, label: PLANS[k].label, amount_cents: PLANS[k].amount })) });
+}
+
+async function adminCreatePackageLink(request, env, url) {
+  const gate = await requireAdmin(request, env);
+  if (gate.error) return gate.error;
+  if (!billingOn(env)) return json({ error: "billing_off", message: "Connect Stripe first to make links." }, 503);
+  let body;
+  try { body = await request.json(); } catch { return json({ error: "bad", message: "Bad request." }, 400); }
+
+  let plan, label, amount;
+  if (PLANS[body.plan] && !body.custom) {
+    plan = body.plan; label = PLANS[plan].label; amount = PLANS[plan].amount;
+  } else {
+    label = (body.label || "").toString().trim().slice(0, 60);
+    if (!label) return json({ error: "label", message: "Name the package." }, 400);
+    amount = Math.round(Number(body.amount_cents) || 0);
+    if (!(amount >= 100)) return json({ error: "amount", message: "Enter a price of at least $1." }, 400);
+    if (amount > 5000000) return json({ error: "amount", message: "That price looks too high." }, 400);
+    plan = PLANS[body.plan] ? body.plan : "grand";
+  }
+
+  const base = baseOf(url, env);
+  let price = null, link = null;
+  try {
+    price = await stripeRequest(env, "prices", {
+      currency: "usd", unit_amount: amount,
+      product_data: { name: "kamemories " + label },
+    });
+    link = await stripeRequest(env, "payment_links", {
+      line_items: [{ price: price.id, quantity: 1 }],
+      allow_promotion_codes: true,
+      after_completion: { type: "redirect", redirect: { url: `${base}/?paid=1` } },
+      metadata: { kind: "package_link", plan: plan, label: label },
+      payment_intent_data: { metadata: { kind: "package_link", plan: plan, label: label } },
+    });
+  } catch (err) {
+    return json({ error: "stripe", message: "Stripe could not make that link. " + (err.message || "") }, 502);
+  }
+
+  const id = crypto.randomUUID();
+  const now = Date.now();
+  await env.DB.prepare(
+    `INSERT INTO package_links (id, label, plan, amount_cents, stripe_price, stripe_link, url, active, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)`
+  ).bind(id, label, plan, amount, price.id, link.id, link.url, now).run();
+
+  return json({ ok: true, link: { id, label, plan, amount_cents: amount, url: link.url, active: 1, created_at: now } }, 201);
+}
+
+async function adminUpdatePackageLink(request, env, id) {
+  const gate = await requireAdmin(request, env);
+  if (gate.error) return gate.error;
+  const pl = await env.DB.prepare("SELECT id, stripe_link FROM package_links WHERE id = ?").bind(id).first();
+  if (!pl) return json({ error: "notfound", message: "Link not found." }, 404);
+  let body;
+  try { body = await request.json(); } catch { body = {}; }
+  const active = body.active ? 1 : 0;
+  if (pl.stripe_link) {
+    try { await stripeRequest(env, "payment_links/" + pl.stripe_link, { active: active ? "true" : "false" }); } catch (e) {}
+  }
+  await env.DB.prepare("UPDATE package_links SET active = ? WHERE id = ?").bind(active, id).run();
+  return json({ ok: true, id, active });
 }
 
 const RECEIPT_MAX_BYTES = 10 * 1024 * 1024;
@@ -1564,6 +1708,11 @@ export default {
         }
         const adminReceiptM = path.match(/^\/api\/admin\/payouts\/([^/]+)\/receipt$/);
         if (adminReceiptM && method === "GET") return adminReceipt(request, env, decodeURIComponent(adminReceiptM[1]));
+        if (path === "/api/admin/revenue" && method === "GET") return adminRevenue(request, env);
+        if (path === "/api/admin/package-links" && method === "GET") return adminListPackageLinks(request, env);
+        if (path === "/api/admin/package-links" && method === "POST") return adminCreatePackageLink(request, env, url);
+        const adminPl = path.match(/^\/api\/admin\/package-links\/([^/]+)$/);
+        if (adminPl && method === "PATCH") return adminUpdatePackageLink(request, env, decodeURIComponent(adminPl[1]));
 
         if (method === "GET") {
           if (path === "/") return asset(env, url, request, "/home.html");

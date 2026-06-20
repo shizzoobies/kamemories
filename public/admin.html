@@ -52,6 +52,26 @@
   <input id="eventsSearch" class="cur-input admin-search" type="search" placeholder="Search by event, address, or client" aria-label="Search events" />
   <div id="eventsList" class="admin-list"></div>
 
+  <div class="admin-colhead admin-colhead-sp" id="revenueColhead">
+    <button class="admin-caret" type="button" aria-label="Collapse revenue" aria-expanded="true">&rsaquo;</button>
+    <h2 class="admin-h">Revenue</h2><span class="admin-count" id="revenueTotal"></span>
+  </div>
+  <div id="revenueWrap">
+    <div id="revenueBreakdown" class="rev-breakdown"></div>
+    <div class="rev-recent-h">Recent payments</div>
+    <div id="revenueRecent" class="admin-list"></div>
+  </div>
+
+  <div class="admin-colhead admin-colhead-sp" id="linksColhead">
+    <button class="admin-caret" type="button" aria-label="Collapse package links" aria-expanded="true">&rsaquo;</button>
+    <h2 class="admin-h">Package links</h2>
+    <button class="btn" id="newLinkBtn" type="button">New link</button>
+  </div>
+  <div id="linksWrap">
+    <p class="admin-sub">A shareable Stripe link to sell a package directly. When a customer pays, a draft event is created for you to finish setting up.</p>
+    <div id="linksList" class="admin-list"></div>
+  </div>
+
   <div class="admin-colhead admin-colhead-sp" id="codesColhead">
     <button class="admin-caret" type="button" aria-label="Collapse vendor codes" aria-expanded="true">&rsaquo;</button>
     <h2 class="admin-h">Vendor codes</h2>
@@ -264,6 +284,33 @@
       <p class="auth-sub" style="margin:0">The vendor keeps the same code; changing the discount updates it in Stripe.</p>
       <p id="editCodeMsg" class="auth-msg"></p>
       <div class="row"><button class="btn primary" id="ecSave" type="submit">Save changes</button></div>
+    </form>
+  </div>
+</div>
+
+<!-- New package link -->
+<div class="modal" id="linkModal">
+  <div class="modal-card">
+    <button class="lb-close" id="linkClose" aria-label="Close">&times;</button>
+    <h2 class="display" style="margin:0 0 4px">New package link</h2>
+    <p class="auth-sub">A shareable Stripe link. When a customer pays, a draft event is created for you to finish.</p>
+    <form id="linkForm">
+      <label class="field"><span>Package</span>
+        <select id="lkPlan">
+          <option value="intimate">Intimate ($49)</option>
+          <option value="signature">Signature ($99)</option>
+          <option value="grand">Grand ($149)</option>
+          <option value="custom">Custom</option>
+        </select>
+      </label>
+      <div class="form-grid" id="lkCustom" style="display:none">
+        <label class="field"><span>Package name</span><input id="lkLabel" type="text" maxlength="60" placeholder="Bespoke wedding site" /></label>
+        <label class="field"><span>Price ($)</span><input id="lkAmount" type="number" min="1" step="1" placeholder="299" /></label>
+      </div>
+      <p class="auth-sub" id="lkNote" style="margin:0; display:none">A custom package gets Grand features by default; adjust the plan on the draft event afterward.</p>
+      <p id="linkMsg" class="auth-msg"></p>
+      <div id="linkDone" class="link-done" style="display:none"></div>
+      <div class="row"><button class="btn primary" id="lkCreate" type="submit">Create link</button></div>
     </form>
   </div>
 </div>

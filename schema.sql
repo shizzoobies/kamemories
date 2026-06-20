@@ -141,3 +141,34 @@ CREATE TABLE IF NOT EXISTS vendor_payouts (
   created_at   INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_vendor_payouts_code ON vendor_payouts (code_id);
+
+-- Money in. One row per completed Stripe checkout (an event purchase or a package
+-- link), recorded by the webhook, so the console can total revenue by package.
+CREATE TABLE IF NOT EXISTS payments (
+  id             TEXT PRIMARY KEY,
+  stripe_session TEXT,                     -- unique; idempotency key
+  event_id       TEXT,                     -- the event this paid for, if any
+  source         TEXT,                     -- 'event' | 'package_link'
+  plan           TEXT,                     -- feature tier (intimate | signature | grand)
+  label          TEXT,                     -- package name shown in the breakdown
+  amount_cents   INTEGER NOT NULL,         -- actually paid (net of any discount)
+  discount_cents INTEGER NOT NULL DEFAULT 0,
+  created_at     INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_session ON payments (stripe_session);
+CREATE INDEX IF NOT EXISTS idx_payments_created ON payments (created_at DESC);
+
+-- Operator-made Stripe Payment Links for selling a package directly. Standard
+-- (a plan) or custom (own name + price). Paying one auto-creates a draft event.
+CREATE TABLE IF NOT EXISTS package_links (
+  id            TEXT PRIMARY KEY,
+  label         TEXT NOT NULL,
+  plan          TEXT,                      -- feature tier the resulting event gets
+  amount_cents  INTEGER NOT NULL,
+  stripe_price  TEXT,
+  stripe_link   TEXT,                      -- payment link id, matched in the webhook
+  url           TEXT,                      -- the shareable buy URL
+  active        INTEGER NOT NULL DEFAULT 1,
+  created_at    INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_package_links_link ON package_links (stripe_link);
