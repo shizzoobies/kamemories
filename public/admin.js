@@ -642,6 +642,13 @@ async function copyCode(code) {
   catch (e) { toast("Could not copy. Select the code to copy it.", true); }
 }
 
+const PAYOUT_LABELS = { venmo: "Venmo", paypal: "PayPal", applepay: "Apple Pay" };
+function payViaText(c) {
+  if (!c.payout_method) return "";
+  const label = PAYOUT_LABELS[c.payout_method] || c.payout_method;
+  return c.payout_id ? label + " · " + c.payout_id : label;
+}
+
 function renderCodes() {
   const list = $("codesList");
   if (!list) return;
@@ -658,6 +665,7 @@ function renderCodes() {
         '<strong class="code-vendor">' + esc(c.vendor_name) + '</strong>' +
         '<span class="code-tagrow"><span class="code-tag">' + esc(c.code) + '</span>' +
           '<button class="code-copy" type="button" title="Copy code" aria-label="Copy code">' + COPY_ICON + '</button></span>' +
+        (c.payout_method ? '<span class="code-payvia">' + esc(payViaText(c)) + '</span>' : '') +
       '</div>' +
       '<span class="code-split">' + c.discount_pct + '% off &middot; vendor earns ' + earn + '% &middot; you keep ' + (100 - pool) + '%</span>' +
       '<div class="code-stats">' + (c.redemptions || 0) + (c.redemptions === 1 ? ' use' : ' uses') +
@@ -699,6 +707,7 @@ function cdSplit() {
 
 $("newCodeBtn").addEventListener("click", () => {
   $("cdVendor").value = ""; $("cdEmail").value = ""; $("cdDiscount").value = 10; $("cdCode").value = "";
+  $("cdMethod").value = ""; $("cdId").value = "";
   setMsg("codeMsg", "", false); cdSplit(); openModal("codeModal");
   setTimeout(() => $("cdVendor").focus(), 60);
 });
@@ -715,6 +724,8 @@ $("codeForm").addEventListener("submit", async (e) => {
     vendor_email: $("cdEmail").value.trim(),
     discount_pct: parseInt($("cdDiscount").value, 10),
     code: $("cdCode").value.trim(),
+    payout_method: $("cdMethod").value,
+    payout_id: $("cdId").value.trim(),
   };
   try {
     const r = await fetch("/api/admin/codes", {
@@ -744,6 +755,8 @@ function openEditCode(c) {
   editCodeRef = c;
   $("editCodeFor").textContent = c.vendor_name + " (" + c.code + ")";
   $("ecDiscount").value = c.discount_pct;
+  $("ecMethod").value = c.payout_method || "";
+  $("ecId").value = c.payout_id || "";
   setMsg("editCodeMsg", "", false);
   ecSplit();
   openModal("editCodeModal");
@@ -757,21 +770,23 @@ $("editCodeForm").addEventListener("submit", async (e) => {
   if (!editCodeRef) return;
   const pct = parseInt($("ecDiscount").value, 10);
   if (!(pct >= 1 && pct <= POOL)) { setMsg("editCodeMsg", "Pick a discount from 1 to " + POOL + "%.", true); return; }
-  if (pct === editCodeRef.discount_pct) { closeModal("editCodeModal"); return; }
   const btn = $("ecSave");
   btn.disabled = true;
-  setMsg("editCodeMsg", "Updating the code in Stripe...", false);
+  setMsg("editCodeMsg", pct !== editCodeRef.discount_pct ? "Updating the code in Stripe..." : "Saving...", false);
   try {
     const r = await fetch("/api/admin/codes/" + encodeURIComponent(editCodeRef.id), {
       method: "PATCH", credentials: "same-origin",
-      headers: { "content-type": "application/json" }, body: JSON.stringify({ discount_pct: pct }),
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ discount_pct: pct, payout_method: $("ecMethod").value, payout_id: $("ecId").value.trim() }),
     });
     const d = await r.json();
-    if (!r.ok) { setMsg("editCodeMsg", d.message || "Could not change the discount.", true); return; }
+    if (!r.ok) { setMsg("editCodeMsg", d.message || "Could not save.", true); return; }
     editCodeRef.discount_pct = d.discount_pct;
+    editCodeRef.payout_method = d.payout_method;
+    editCodeRef.payout_id = d.payout_id;
     renderCodes();
     closeModal("editCodeModal");
-    toast("Discount changed to " + d.discount_pct + "%.");
+    toast("Code updated.");
   } catch (err) {
     setMsg("editCodeMsg", "No connection. Try again.", true);
   } finally {
@@ -784,6 +799,9 @@ let payoutCode = null;
 function payoutSummary(c) {
   const owed = codeOwed(c);
   $("payoutFor").textContent = "Owed " + money(owed) + " to " + c.vendor_name + " (" + c.code + ")";
+  const via = payViaText(c);
+  $("payoutVia").textContent = via ? "Pay via " + via : "";
+  $("payoutVia").style.display = via ? "" : "none";
   $("poAmount").value = (owed / 100).toFixed(2);
 }
 function openPayout(c) {

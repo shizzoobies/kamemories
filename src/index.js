@@ -1205,13 +1205,18 @@ async function handleStripeWebhook(request, env) {
 // ---------------------------------------------------------------------------
 
 const VENDOR_POOL_PCT = 50; // margin set aside per code: customer discount + vendor commission
+const PAYOUT_METHODS = ["venmo", "paypal", "applepay"];
+function normPayoutMethod(v) {
+  v = (v || "").toString().trim().toLowerCase();
+  return PAYOUT_METHODS.includes(v) ? v : null;
+}
 
 async function adminListCodes(request, env) {
   const gate = await requireAdmin(request, env);
   if (gate.error) return gate.error;
   // Subqueries (not joins) so redemption and payout sums do not multiply together.
   const { results } = await env.DB.prepare(
-    `SELECT vc.id, vc.code, vc.vendor_name, vc.vendor_email, vc.discount_pct, vc.pool_pct, vc.active, vc.created_at,
+    `SELECT vc.id, vc.code, vc.vendor_name, vc.vendor_email, vc.payout_method, vc.payout_id, vc.discount_pct, vc.pool_pct, vc.active, vc.created_at,
             (SELECT COUNT(*) FROM vendor_redemptions vr WHERE vr.code_id = vc.id) AS redemptions,
             (SELECT COALESCE(SUM(gross_cents), 0) FROM vendor_redemptions vr WHERE vr.code_id = vc.id) AS gross_cents,
             (SELECT COALESCE(SUM(commission_cents), 0) FROM vendor_redemptions vr WHERE vr.code_id = vc.id) AS commission_cents,
@@ -1233,6 +1238,8 @@ async function adminCreateCode(request, env) {
   if (!vendorName) return json({ error: "vendor", message: "Name the vendor." }, 400);
   const vendorEmail = (body.vendor_email || "").toString().trim().toLowerCase().slice(0, 120) || null;
   if (vendorEmail && !isEmail(vendorEmail)) return json({ error: "email", message: "That vendor email looks off." }, 400);
+  const payoutMethod = normPayoutMethod(body.payout_method);
+  const payoutId = (body.payout_id || "").toString().trim().slice(0, 120) || null;
 
   const discountPct = clampInt(body.discount_pct, 1, VENDOR_POOL_PCT, 0);
   if (discountPct < 1) return json({ error: "discount", message: `Pick a customer discount from 1 to ${VENDOR_POOL_PCT} percent.` }, 400);
@@ -1266,13 +1273,13 @@ async function adminCreateCode(request, env) {
   const id = crypto.randomUUID();
   const now = Date.now();
   await env.DB.prepare(
-    `INSERT INTO vendor_codes (id, code, vendor_name, vendor_email, discount_pct, pool_pct, stripe_coupon, stripe_promo, active, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`
-  ).bind(id, code, vendorName, vendorEmail, discountPct, VENDOR_POOL_PCT, coupon.id, promo.id, now).run();
+    `INSERT INTO vendor_codes (id, code, vendor_name, vendor_email, payout_method, payout_id, discount_pct, pool_pct, stripe_coupon, stripe_promo, active, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`
+  ).bind(id, code, vendorName, vendorEmail, payoutMethod, payoutId, discountPct, VENDOR_POOL_PCT, coupon.id, promo.id, now).run();
 
   return json({ ok: true, code: {
-    id, code, vendor_name: vendorName, vendor_email: vendorEmail, discount_pct: discountPct, pool_pct: VENDOR_POOL_PCT,
-    active: 1, created_at: now, redemptions: 0, gross_cents: 0, commission_cents: 0,
+    id, code, vendor_name: vendorName, vendor_email: vendorEmail, payout_method: payoutMethod, payout_id: payoutId,
+    discount_pct: discountPct, pool_pct: VENDOR_POOL_PCT, active: 1, created_at: now, redemptions: 0, gross_cents: 0, commission_cents: 0,
   } }, 201);
 }
 
@@ -1284,46 +1291,56 @@ async function adminUpdateCode(request, env, id) {
   let body;
   try { body = await request.json(); } catch { body = {}; }
 
-  // Change the discount. A Stripe coupon's percent_off is immutable, so we mint a
-  // fresh coupon and promotion code, reusing the same customer-facing code string
-  // (freed by archiving the old promo first) so the vendor's code is unchanged.
-  if (body.discount_pct != null) {
-    if (!billingOn(env)) return json({ error: "billing_off", message: "Connect Stripe first." }, 503);
-    const newPct = clampInt(body.discount_pct, 1, vc.pool_pct, vc.discount_pct);
-    if (newPct < 1) return json({ error: "discount", message: `Pick a discount from 1 to ${vc.pool_pct} percent.` }, 400);
-    if (newPct === vc.discount_pct) return json({ ok: true, id, discount_pct: newPct, active: vc.active });
-    let coupon = null, promo = null;
-    try {
-      coupon = await stripeRequest(env, "coupons", {
-        percent_off: newPct, duration: "once",
-        name: `${vc.vendor_name} (${newPct}% off)`,
-        metadata: { vendor: vc.vendor_name, pool: vc.pool_pct, discount: newPct },
-      });
-      if (vc.stripe_promo) { try { await stripeRequest(env, "promotion_codes/" + vc.stripe_promo, { active: "false" }); } catch (e) {} }
-      promo = await stripeRequest(env, "promotion_codes", {
-        coupon: coupon.id, code: vc.code, active: vc.active ? "true" : "false",
-        metadata: { vendor: vc.vendor_name, pool: vc.pool_pct, discount: newPct, commission: vc.pool_pct - newPct },
-      });
-    } catch (err) {
-      if (coupon && coupon.id && !promo) { try { await stripeDelete(env, "coupons/" + coupon.id); } catch (e) {} }
-      // Restore the old promo so the existing code keeps working if the swap failed.
-      if (vc.stripe_promo) { try { await stripeRequest(env, "promotion_codes/" + vc.stripe_promo, { active: vc.active ? "true" : "false" }); } catch (e) {} }
-      return json({ error: "stripe", message: "Could not change the discount. " + (err.message || "") }, 502);
+  const isEdit = body.discount_pct != null || body.payout_method !== undefined || body.payout_id !== undefined;
+
+  // Toggle on/off (Deactivate / Activate); mirror to Stripe so it stops working.
+  if (!isEdit) {
+    const active = body.active ? 1 : 0;
+    if (vc.stripe_promo) {
+      try { await stripeRequest(env, "promotion_codes/" + vc.stripe_promo, { active: active ? "true" : "false" }); } catch (e) {}
     }
-    if (vc.stripe_coupon) { try { await stripeDelete(env, "coupons/" + vc.stripe_coupon); } catch (e) {} }
-    await env.DB.prepare("UPDATE vendor_codes SET discount_pct = ?, stripe_coupon = ?, stripe_promo = ? WHERE id = ?")
-      .bind(newPct, coupon.id, promo.id, id).run();
-    return json({ ok: true, id, discount_pct: newPct, active: vc.active });
+    await env.DB.prepare("UPDATE vendor_codes SET active = ? WHERE id = ?").bind(active, id).run();
+    return json({ ok: true, id, active });
   }
 
-  // Otherwise toggle the on/off state. Mirror it to Stripe so a deactivated code
-  // stops working at checkout.
-  const active = body.active ? 1 : 0;
-  if (vc.stripe_promo) {
-    try { await stripeRequest(env, "promotion_codes/" + vc.stripe_promo, { active: active ? "true" : "false" }); } catch (e) {}
+  // Edit: payout details, and optionally the discount. A coupon's percent_off is
+  // immutable, so a discount change mints a fresh coupon + promotion code that
+  // reuses the same customer-facing code string (the old promo is archived first).
+  const payoutMethod = body.payout_method !== undefined ? normPayoutMethod(body.payout_method) : (vc.payout_method || null);
+  const payoutId = body.payout_id !== undefined ? ((body.payout_id || "").toString().trim().slice(0, 120) || null) : (vc.payout_id || null);
+
+  let newPct = vc.discount_pct, newCoupon = vc.stripe_coupon, newPromo = vc.stripe_promo;
+  if (body.discount_pct != null) {
+    const p = clampInt(body.discount_pct, 1, vc.pool_pct, vc.discount_pct);
+    if (p < 1) return json({ error: "discount", message: `Pick a discount from 1 to ${vc.pool_pct} percent.` }, 400);
+    if (p !== vc.discount_pct) {
+      if (!billingOn(env)) return json({ error: "billing_off", message: "Connect Stripe first." }, 503);
+      let coupon = null, promo = null;
+      try {
+        coupon = await stripeRequest(env, "coupons", {
+          percent_off: p, duration: "once",
+          name: `${vc.vendor_name} (${p}% off)`,
+          metadata: { vendor: vc.vendor_name, pool: vc.pool_pct, discount: p },
+        });
+        if (vc.stripe_promo) { try { await stripeRequest(env, "promotion_codes/" + vc.stripe_promo, { active: "false" }); } catch (e) {} }
+        promo = await stripeRequest(env, "promotion_codes", {
+          coupon: coupon.id, code: vc.code, active: vc.active ? "true" : "false",
+          metadata: { vendor: vc.vendor_name, pool: vc.pool_pct, discount: p, commission: vc.pool_pct - p },
+        });
+      } catch (err) {
+        if (coupon && coupon.id && !promo) { try { await stripeDelete(env, "coupons/" + coupon.id); } catch (e) {} }
+        if (vc.stripe_promo) { try { await stripeRequest(env, "promotion_codes/" + vc.stripe_promo, { active: vc.active ? "true" : "false" }); } catch (e) {} }
+        return json({ error: "stripe", message: "Could not change the discount. " + (err.message || "") }, 502);
+      }
+      if (vc.stripe_coupon) { try { await stripeDelete(env, "coupons/" + vc.stripe_coupon); } catch (e) {} }
+      newPct = p; newCoupon = coupon.id; newPromo = promo.id;
+    }
   }
-  await env.DB.prepare("UPDATE vendor_codes SET active = ? WHERE id = ?").bind(active, id).run();
-  return json({ ok: true, id, active });
+
+  await env.DB.prepare(
+    "UPDATE vendor_codes SET discount_pct = ?, stripe_coupon = ?, stripe_promo = ?, payout_method = ?, payout_id = ? WHERE id = ?"
+  ).bind(newPct, newCoupon, newPromo, payoutMethod, payoutId, id).run();
+  return json({ ok: true, id, discount_pct: newPct, payout_method: payoutMethod, payout_id: payoutId, active: vc.active });
 }
 
 const RECEIPT_MAX_BYTES = 10 * 1024 * 1024;

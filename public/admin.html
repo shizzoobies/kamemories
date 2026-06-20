@@ -224,6 +224,15 @@
         <label class="field"><span>Vendor email (optional)</span><input id="cdEmail" type="email" maxlength="120" placeholder="hello@vendor.com" autocomplete="off" /></label>
         <label class="field"><span>Customer discount %</span><input id="cdDiscount" type="number" min="1" max="50" value="10" /></label>
         <label class="field"><span>Code (optional)</span><input id="cdCode" type="text" maxlength="40" placeholder="auto from vendor name" /></label>
+        <label class="field"><span>Payout method</span>
+          <select id="cdMethod">
+            <option value="">Not set</option>
+            <option value="venmo">Venmo</option>
+            <option value="paypal">PayPal</option>
+            <option value="applepay">Apple Pay</option>
+          </select>
+        </label>
+        <label class="field"><span>Payout ID (handle, email, or phone)</span><input id="cdId" type="text" maxlength="120" placeholder="@handle, email, or phone" autocomplete="off" /></label>
       </div>
       <p class="cd-split" id="cdSplit"></p>
       <p id="codeMsg" class="auth-msg"></p>
@@ -236,14 +245,25 @@
 <div class="modal" id="editCodeModal">
   <div class="modal-card">
     <button class="lb-close" id="editCodeClose" aria-label="Close">&times;</button>
-    <h2 class="display" style="margin:0 0 4px">Change discount</h2>
+    <h2 class="display" style="margin:0 0 4px">Edit code</h2>
     <p class="auth-sub" id="editCodeFor"></p>
     <form id="editCodeForm">
-      <label class="field"><span>Customer discount %</span><input id="ecDiscount" type="number" min="1" max="50" /></label>
+      <div class="form-grid">
+        <label class="field"><span>Customer discount %</span><input id="ecDiscount" type="number" min="1" max="50" /></label>
+        <label class="field"><span>Payout method</span>
+          <select id="ecMethod">
+            <option value="">Not set</option>
+            <option value="venmo">Venmo</option>
+            <option value="paypal">PayPal</option>
+            <option value="applepay">Apple Pay</option>
+          </select>
+        </label>
+      </div>
+      <label class="field"><span>Payout ID (handle, email, or phone)</span><input id="ecId" type="text" maxlength="120" placeholder="@handle, email, or phone" autocomplete="off" /></label>
       <p class="cd-split" id="ecSplit"></p>
-      <p class="auth-sub" style="margin:0">The vendor keeps the same code; only the discount it offers changes.</p>
+      <p class="auth-sub" style="margin:0">The vendor keeps the same code; changing the discount updates it in Stripe.</p>
       <p id="editCodeMsg" class="auth-msg"></p>
-      <div class="row"><button class="btn primary" id="ecSave" type="submit">Save discount</button></div>
+      <div class="row"><button class="btn primary" id="ecSave" type="submit">Save changes</button></div>
     </form>
   </div>
 </div>
@@ -254,6 +274,7 @@
     <button class="lb-close" id="payoutClose" aria-label="Close">&times;</button>
     <h2 class="display" style="margin:0 0 4px">Record a payout</h2>
     <p class="auth-sub" id="payoutFor"></p>
+    <p class="po-via" id="payoutVia"></p>
     <form id="payoutForm">
       <div class="form-grid">
         <label class="field"><span>Amount paid ($)</span><input id="poAmount" type="number" min="0" step="0.01" /></label>

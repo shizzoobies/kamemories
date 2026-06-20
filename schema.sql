@@ -102,6 +102,8 @@ CREATE TABLE IF NOT EXISTS vendor_codes (
   code           TEXT NOT NULL,            -- customer-facing code (uppercase)
   vendor_name    TEXT NOT NULL,
   vendor_email   TEXT,
+  payout_method  TEXT,                     -- venmo | paypal | applepay
+  payout_id      TEXT,                     -- their handle/email/phone on that platform
   discount_pct   INTEGER NOT NULL,         -- what the customer gets off (1..pool_pct)
   pool_pct       INTEGER NOT NULL DEFAULT 50, -- total we give up; commission = pool - discount
   stripe_coupon  TEXT,
