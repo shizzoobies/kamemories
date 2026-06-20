@@ -872,16 +872,20 @@ body.cinema .veil {
 .code-card:last-child { border-bottom: 0; }
 .code-card:hover { background: var(--surface); }
 .code-card.off { opacity: 0.5; }
-.code-tag { font-weight: 700; letter-spacing: 0.06em; color: #0a1626; background: var(--silver); border-radius: 7px; padding: 4px 10px; font-size: 0.84rem; }
-.code-main { display: flex; flex-direction: column; gap: 2px; min-width: 150px; }
-.code-main strong { color: var(--ink); font-size: 0.96rem; }
+.code-id { display: flex; flex-direction: column; gap: 6px; min-width: 160px; }
+.code-vendor { font-family: "Playfair Display", serif; font-weight: 500; font-size: 1.08rem; color: var(--ink); }
+.code-tagrow { display: inline-flex; align-items: center; gap: 7px; }
+.code-tag { font-weight: 700; letter-spacing: 0.06em; color: #0a1626; background: var(--silver); border-radius: 7px; padding: 4px 10px; font-size: 0.82rem; }
+.code-copy { display: inline-grid; place-items: center; width: 28px; height: 26px; padding: 0; background: none; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); cursor: pointer; transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease; }
+.code-copy:hover { color: var(--ink); border-color: var(--silver); background: var(--surface-2); }
+.code-copy svg { width: 14px; height: 14px; }
 .code-split { color: var(--muted); font-size: 0.8rem; }
 .code-stats { color: var(--muted); font-size: 0.82rem; margin-left: auto; white-space: nowrap; }
 .code-stats strong { color: var(--silver); }
 .code-toggle { padding: 7px 13px; font-size: 0.82rem; }
 .cd-split { color: var(--silver); font-size: 0.86rem; margin: 2px 0 0; }
 .code-actions { display: flex; gap: 7px; flex-wrap: wrap; }
-.code-pay { padding: 7px 13px; font-size: 0.82rem; }
+.code-edit, .code-pay { padding: 7px 13px; font-size: 0.82rem; }
 .code-owed.due { color: #e8b873; }
 /* Sort selects on the console lists. */
 .admin-sort { margin-left: auto; padding: 7px 12px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); font: inherit; font-size: 0.84rem; cursor: pointer; }

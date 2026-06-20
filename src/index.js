@@ -1279,12 +1279,46 @@ async function adminCreateCode(request, env) {
 async function adminUpdateCode(request, env, id) {
   const gate = await requireAdmin(request, env);
   if (gate.error) return gate.error;
-  const vc = await env.DB.prepare("SELECT id, stripe_promo FROM vendor_codes WHERE id = ?").bind(id).first();
+  const vc = await env.DB.prepare("SELECT * FROM vendor_codes WHERE id = ?").bind(id).first();
   if (!vc) return json({ error: "notfound", message: "Code not found." }, 404);
   let body;
   try { body = await request.json(); } catch { body = {}; }
+
+  // Change the discount. A Stripe coupon's percent_off is immutable, so we mint a
+  // fresh coupon and promotion code, reusing the same customer-facing code string
+  // (freed by archiving the old promo first) so the vendor's code is unchanged.
+  if (body.discount_pct != null) {
+    if (!billingOn(env)) return json({ error: "billing_off", message: "Connect Stripe first." }, 503);
+    const newPct = clampInt(body.discount_pct, 1, vc.pool_pct, vc.discount_pct);
+    if (newPct < 1) return json({ error: "discount", message: `Pick a discount from 1 to ${vc.pool_pct} percent.` }, 400);
+    if (newPct === vc.discount_pct) return json({ ok: true, id, discount_pct: newPct, active: vc.active });
+    let coupon = null, promo = null;
+    try {
+      coupon = await stripeRequest(env, "coupons", {
+        percent_off: newPct, duration: "once",
+        name: `${vc.vendor_name} (${newPct}% off)`,
+        metadata: { vendor: vc.vendor_name, pool: vc.pool_pct, discount: newPct },
+      });
+      if (vc.stripe_promo) { try { await stripeRequest(env, "promotion_codes/" + vc.stripe_promo, { active: "false" }); } catch (e) {} }
+      promo = await stripeRequest(env, "promotion_codes", {
+        coupon: coupon.id, code: vc.code, active: vc.active ? "true" : "false",
+        metadata: { vendor: vc.vendor_name, pool: vc.pool_pct, discount: newPct, commission: vc.pool_pct - newPct },
+      });
+    } catch (err) {
+      if (coupon && coupon.id && !promo) { try { await stripeDelete(env, "coupons/" + coupon.id); } catch (e) {} }
+      // Restore the old promo so the existing code keeps working if the swap failed.
+      if (vc.stripe_promo) { try { await stripeRequest(env, "promotion_codes/" + vc.stripe_promo, { active: vc.active ? "true" : "false" }); } catch (e) {} }
+      return json({ error: "stripe", message: "Could not change the discount. " + (err.message || "") }, 502);
+    }
+    if (vc.stripe_coupon) { try { await stripeDelete(env, "coupons/" + vc.stripe_coupon); } catch (e) {} }
+    await env.DB.prepare("UPDATE vendor_codes SET discount_pct = ?, stripe_coupon = ?, stripe_promo = ? WHERE id = ?")
+      .bind(newPct, coupon.id, promo.id, id).run();
+    return json({ ok: true, id, discount_pct: newPct, active: vc.active });
+  }
+
+  // Otherwise toggle the on/off state. Mirror it to Stripe so a deactivated code
+  // stops working at checkout.
   const active = body.active ? 1 : 0;
-  // Mirror the on/off state to Stripe so a deactivated code stops working at checkout.
   if (vc.stripe_promo) {
     try { await stripeRequest(env, "promotion_codes/" + vc.stripe_promo, { active: active ? "true" : "false" }); } catch (e) {}
   }

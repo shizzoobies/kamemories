@@ -635,33 +635,43 @@ async function loadCodes() {
   } catch (e) {}
 }
 
+const COPY_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
+
+async function copyCode(code) {
+  try { await navigator.clipboard.writeText(code); toast(code + " copied."); }
+  catch (e) { toast("Could not copy. Select the code to copy it.", true); }
+}
+
 function renderCodes() {
   const list = $("codesList");
   if (!list) return;
   list.innerHTML = "";
   if (!codes.length) { list.innerHTML = '<p class="admin-empty">No vendor codes yet. Create one to start a referral.</p>'; return; }
   for (const c of sortCodes(codes)) {
-    const earn = (c.pool_pct || POOL) - c.discount_pct;
+    const pool = c.pool_pct || POOL;
+    const earn = pool - c.discount_pct;
     const owed = codeOwed(c);
     const card = document.createElement("div");
     card.className = "code-card" + (c.active ? "" : " off");
     card.innerHTML =
-      '<span class="code-tag">' + esc(c.code) + '</span>' +
-      '<div class="code-main"><strong>' + esc(c.vendor_name) + '</strong>' +
-        '<span class="code-split">' + c.discount_pct + '% off &middot; vendor earns ' + earn + '% &middot; you keep ' + (100 - (c.pool_pct || POOL)) + '%</span></div>' +
+      '<div class="code-id">' +
+        '<strong class="code-vendor">' + esc(c.vendor_name) + '</strong>' +
+        '<span class="code-tagrow"><span class="code-tag">' + esc(c.code) + '</span>' +
+          '<button class="code-copy" type="button" title="Copy code" aria-label="Copy code">' + COPY_ICON + '</button></span>' +
+      '</div>' +
+      '<span class="code-split">' + c.discount_pct + '% off &middot; vendor earns ' + earn + '% &middot; you keep ' + (100 - pool) + '%</span>' +
       '<div class="code-stats">' + (c.redemptions || 0) + (c.redemptions === 1 ? ' use' : ' uses') +
         ' &middot; <strong class="code-owed' + (owed > 0 ? ' due' : '') + '">' + money(owed) + '</strong> owed' +
-        ((c.paid_cents || 0) > 0 ? ' &middot; ' + money(c.paid_cents) + ' paid' : '') + '</div>';
-    const actions = document.createElement("div");
-    actions.className = "code-actions";
-    const payBtn = document.createElement("button");
-    payBtn.type = "button"; payBtn.className = "btn code-pay"; payBtn.textContent = "Mark paid";
-    payBtn.addEventListener("click", () => openPayout(c));
-    const tgl = document.createElement("button");
-    tgl.type = "button"; tgl.className = "btn code-toggle"; tgl.textContent = c.active ? "Deactivate" : "Activate";
-    tgl.addEventListener("click", () => toggleCode(c, tgl));
-    actions.append(payBtn, tgl);
-    card.appendChild(actions);
+        ((c.paid_cents || 0) > 0 ? ' &middot; ' + money(c.paid_cents) + ' paid' : '') + '</div>' +
+      '<div class="code-actions">' +
+        '<button class="btn code-edit" type="button">Edit</button>' +
+        '<button class="btn code-pay" type="button">Mark paid</button>' +
+        '<button class="btn code-toggle" type="button">' + (c.active ? "Deactivate" : "Activate") + '</button>' +
+      '</div>';
+    card.querySelector(".code-copy").addEventListener("click", () => copyCode(c.code));
+    card.querySelector(".code-edit").addEventListener("click", () => openEditCode(c));
+    card.querySelector(".code-pay").addEventListener("click", () => openPayout(c));
+    card.querySelector(".code-toggle").addEventListener("click", (e) => toggleCode(c, e.currentTarget));
     list.appendChild(card);
   }
 }
@@ -719,6 +729,51 @@ $("codeForm").addEventListener("submit", async (e) => {
     toast("Code " + d.code.code + " created.");
   } catch (err) {
     setMsg("codeMsg", "No connection. Try again.", true);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// ---- Change a code's discount (mints a fresh Stripe coupon, same code) ----
+let editCodeRef = null;
+function ecSplit() {
+  const d = Math.max(0, Math.min(POOL, parseInt($("ecDiscount").value, 10) || 0));
+  $("ecSplit").textContent = "Customer saves " + d + "%, vendor earns " + (POOL - d) + "%, you keep " + (100 - POOL) + "%.";
+}
+function openEditCode(c) {
+  editCodeRef = c;
+  $("editCodeFor").textContent = c.vendor_name + " (" + c.code + ")";
+  $("ecDiscount").value = c.discount_pct;
+  setMsg("editCodeMsg", "", false);
+  ecSplit();
+  openModal("editCodeModal");
+  setTimeout(() => $("ecDiscount").focus(), 60);
+}
+$("editCodeClose").addEventListener("click", () => closeModal("editCodeModal"));
+$("editCodeModal").addEventListener("click", (e) => { if (e.target.id === "editCodeModal") closeModal("editCodeModal"); });
+$("ecDiscount").addEventListener("input", ecSplit);
+$("editCodeForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!editCodeRef) return;
+  const pct = parseInt($("ecDiscount").value, 10);
+  if (!(pct >= 1 && pct <= POOL)) { setMsg("editCodeMsg", "Pick a discount from 1 to " + POOL + "%.", true); return; }
+  if (pct === editCodeRef.discount_pct) { closeModal("editCodeModal"); return; }
+  const btn = $("ecSave");
+  btn.disabled = true;
+  setMsg("editCodeMsg", "Updating the code in Stripe...", false);
+  try {
+    const r = await fetch("/api/admin/codes/" + encodeURIComponent(editCodeRef.id), {
+      method: "PATCH", credentials: "same-origin",
+      headers: { "content-type": "application/json" }, body: JSON.stringify({ discount_pct: pct }),
+    });
+    const d = await r.json();
+    if (!r.ok) { setMsg("editCodeMsg", d.message || "Could not change the discount.", true); return; }
+    editCodeRef.discount_pct = d.discount_pct;
+    renderCodes();
+    closeModal("editCodeModal");
+    toast("Discount changed to " + d.discount_pct + "%.");
+  } catch (err) {
+    setMsg("editCodeMsg", "No connection. Try again.", true);
   } finally {
     btn.disabled = false;
   }

@@ -232,6 +232,22 @@
   </div>
 </div>
 
+<!-- Change a code's discount -->
+<div class="modal" id="editCodeModal">
+  <div class="modal-card">
+    <button class="lb-close" id="editCodeClose" aria-label="Close">&times;</button>
+    <h2 class="display" style="margin:0 0 4px">Change discount</h2>
+    <p class="auth-sub" id="editCodeFor"></p>
+    <form id="editCodeForm">
+      <label class="field"><span>Customer discount %</span><input id="ecDiscount" type="number" min="1" max="50" /></label>
+      <p class="cd-split" id="ecSplit"></p>
+      <p class="auth-sub" style="margin:0">The vendor keeps the same code; only the discount it offers changes.</p>
+      <p id="editCodeMsg" class="auth-msg"></p>
+      <div class="row"><button class="btn primary" id="ecSave" type="submit">Save discount</button></div>
+    </form>
+  </div>
+</div>
+
 <!-- Record a vendor payout -->
 <div class="modal" id="payoutModal">
   <div class="modal-card">
