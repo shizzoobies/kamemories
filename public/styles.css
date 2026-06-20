@@ -237,6 +237,12 @@ body {
 .topbar nav a { color: var(--muted); text-decoration: none; font-size: 0.86rem; letter-spacing: 0.04em; }
 .topbar nav a:hover { color: var(--ink); }
 .topbar nav a.pill { border: 1px solid var(--line); padding: 8px 16px; border-radius: 999px; color: var(--ink); }
+/* On a phone the operator's own email crowds the nav; drop it so the links fit. */
+@media (max-width: 560px) {
+  .topbar { padding: 16px 18px; gap: 10px; }
+  .topbar nav { gap: 15px; }
+  .who-email { display: none; }
+}
 
 /* ---------- Landing hero ---------- */
 .hero {
@@ -377,9 +383,10 @@ body {
 
 /* Curation: stats, toolbar inputs, review queue */
 .cur-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; max-width: 1120px; margin: 0 auto; padding: 0 24px 16px; }
-.stat { background: var(--surface); border: 1px solid var(--line-soft); border-radius: var(--radius-sm); padding: 14px 10px; text-align: center; }
-.stat-v { font-family: "Playfair Display", serif; font-weight: 500; font-size: 1.7rem; color: var(--silver-bright); line-height: 1; }
-.stat-l { font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-top: 6px; }
+.stat { background: linear-gradient(180deg, var(--surface-2), var(--surface)); border: 1px solid var(--line-soft); border-radius: 14px; padding: 18px 12px; text-align: center; transition: border-color 0.2s ease; }
+.stat:hover { border-color: var(--line); }
+.stat-v { font-family: "Playfair Display", serif; font-weight: 500; font-size: 1.9rem; color: var(--silver-bright); line-height: 1; }
+.stat-l { font-size: 0.68rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); margin-top: 8px; }
 
 .cur-input { background: var(--surface); border: 1px solid var(--line); border-radius: 999px; color: var(--ink); font: inherit; font-size: 0.84rem; padding: 8px 14px; }
 .cur-input::placeholder { color: var(--faint); }
@@ -444,8 +451,11 @@ body {
 /* ---------- Dashboard ---------- */
 .dash-loading { text-align: center; color: var(--muted); padding: 80px 20px; }
 .dash { max-width: 1120px; }
-.dash-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 22px; }
+.dash-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 26px; }
 .dash-new { flex: 0 0 auto; }
+/* Header and section-header buttons size to their label (the base .btn grows
+   with flex: 1 for form rows, which we do not want here). */
+.dash-head .btn, .admin-colhead .btn { flex: 0 0 auto; padding: 11px 20px; font-size: 0.9rem; }
 .who-email { color: var(--muted); font-size: 0.84rem; margin-right: 16px; }
 .who-out { color: var(--silver); text-decoration: none; font-size: 0.84rem; }
 
@@ -456,9 +466,10 @@ body {
 .ev-card:hover { transform: translateY(-2px); border-color: var(--line); }
 .ev-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .ev-name { font-size: 1.25rem; font-weight: 500; margin: 0; }
-.ev-badge { font-size: 0.64rem; letter-spacing: 0.1em; text-transform: uppercase; padding: 4px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
-.ev-badge.active { background: var(--silver); color: #0a1626; border-color: var(--silver); }
-.ev-badge.archived { color: var(--faint); }
+.ev-badge { font-size: 0.62rem; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.ev-badge.active { color: #9fe3bd; background: rgba(86, 198, 150, 0.12); border-color: rgba(86, 198, 150, 0.3); }
+.ev-badge.draft { color: var(--muted); background: rgba(255, 255, 255, 0.04); border-color: var(--line); }
+.ev-badge.archived { color: var(--faint); background: transparent; border-color: var(--line-soft); }
 .ev-host { color: var(--silver-deep); font-size: 0.84rem; margin-top: 8px; word-break: break-all; }
 .ev-stats { display: flex; gap: 16px; margin-top: 16px; color: var(--muted); font-size: 0.8rem; }
 .ev-stats strong { color: var(--silver-bright); font-weight: 600; }
@@ -800,19 +811,40 @@ body.cinema .veil {
 #console .cur-stats, #eventDetail .cur-stats { max-width: none; margin: 0 0 18px; padding: 0; }
 .admin-list { display: flex; flex-direction: column; gap: 10px; }
 .admin-empty { color: var(--faint); font-size: 0.9rem; }
-.admin-row { display: flex; align-items: center; flex-wrap: wrap; gap: 7px 14px; background: var(--surface); border: 1px solid var(--line-soft); border-radius: var(--radius); padding: 13px 16px; cursor: pointer; transition: border-color 0.18s ease, background 0.18s ease; }
-.admin-row:hover, .admin-row:focus-visible { border-color: var(--silver); background: var(--surface-2); outline: none; }
-.admin-row-name { font-family: "Playfair Display", serif; font-size: 1.05rem; color: var(--ink); }
-.admin-row-host { color: var(--silver); font-size: 0.82rem; }
-.admin-row-owner { color: var(--muted); font-size: 0.8rem; margin-left: auto; }
-.admin-row-count { color: var(--muted); font-size: 0.8rem; white-space: nowrap; }
-.admin-row-go { color: var(--faint); font-size: 1.4rem; line-height: 1; }
-.admin-clients { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
-.admin-client { background: var(--surface); border: 1px solid var(--line-soft); border-radius: var(--radius); padding: 12px 14px; }
-.admin-client-email { color: var(--ink); font-weight: 600; font-size: 0.9rem; word-break: break-word; }
-.admin-client-meta { color: var(--muted); font-size: 0.78rem; margin-top: 4px; }
-.code-card { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; background: var(--surface); border: 1px solid var(--line-soft); border-radius: var(--radius); padding: 13px 16px; }
-.code-card.off { opacity: 0.55; }
+/* Event rows: an identity block (name, status, address) on the left and a
+   right-aligned meta block, so names breathe and nothing floats into a gap. */
+.admin-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 14px 20px;
+  background: var(--surface); border: 1px solid var(--line-soft); border-radius: 14px; padding: 15px 18px 15px 20px;
+  cursor: pointer; transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+.admin-row:hover, .admin-row:focus-visible { border-color: var(--line); background: var(--surface-2); transform: translateY(-1px); box-shadow: 0 10px 26px rgba(0, 0, 0, 0.3); outline: none; }
+.evr-id { min-width: 0; }
+.evr-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.evr-name { font-family: "Playfair Display", serif; font-size: 1.16rem; color: var(--ink); line-height: 1.15; }
+.evr-host { display: block; margin-top: 4px; color: var(--silver-deep); font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.evr-right { display: flex; align-items: center; gap: 16px; }
+.evr-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; text-align: right; }
+.evr-owner { color: var(--muted); font-size: 0.82rem; white-space: nowrap; }
+.evr-count { color: var(--faint); font-size: 0.76rem; letter-spacing: 0.02em; white-space: nowrap; }
+.evr-go { color: var(--faint); font-size: 1.25rem; line-height: 1; transition: color 0.2s ease, transform 0.2s ease; }
+.admin-row:hover .evr-go { color: var(--silver); transform: translateX(2px); }
+@media (max-width: 560px) {
+  .admin-row { grid-template-columns: 1fr; gap: 10px; }
+  .evr-right { justify-content: space-between; }
+  .evr-meta { align-items: flex-start; text-align: left; flex-flow: row wrap; gap: 3px 12px; }
+  .evr-owner { white-space: normal; word-break: break-word; }
+}
+.admin-clients { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.admin-client { display: flex; align-items: center; gap: 13px; background: var(--surface); border: 1px solid var(--line-soft); border-radius: 14px; padding: 14px 16px; transition: border-color 0.2s ease, transform 0.2s ease; }
+.admin-client:hover { border-color: var(--line); transform: translateY(-1px); }
+.cl-mono { flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); border: 1px solid var(--line); color: var(--silver-bright); font-family: "Playfair Display", serif; font-size: 1.1rem; }
+.cl-body { min-width: 0; }
+.cl-email { color: var(--ink); font-weight: 600; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-meta { color: var(--faint); font-size: 0.78rem; margin-top: 3px; }
+.code-card { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; background: var(--surface); border: 1px solid var(--line-soft); border-radius: 14px; padding: 15px 18px; transition: border-color 0.2s ease, transform 0.2s ease; }
+.code-card:hover { border-color: var(--line); transform: translateY(-1px); }
+.code-card.off { opacity: 0.5; }
 .code-tag { font-weight: 700; letter-spacing: 0.06em; color: #0a1626; background: var(--silver); border-radius: 7px; padding: 4px 10px; font-size: 0.84rem; }
 .code-main { display: flex; flex-direction: column; gap: 2px; min-width: 150px; }
 .code-main strong { color: var(--ink); font-size: 0.96rem; }

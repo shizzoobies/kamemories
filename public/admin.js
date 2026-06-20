@@ -133,14 +133,22 @@ function eventRow(e) {
   row.tabIndex = 0;
   row.setAttribute("role", "button");
   const plan = e.plan ? PLAN_LABEL[e.plan] : "No plan";
-  const newPill = isNewBooking(e) ? '<span class="newbk-pill">New</span>' : '';
-  row.innerHTML = newPill +
-    '<span class="admin-row-name">' + esc(e.name) + '</span>' +
-    '<span class="ev-badge ' + esc(e.status) + '">' + esc(e.status) + '</span>' +
-    '<span class="admin-row-host">' + esc(e.host) + '</span>' +
-    '<span class="admin-row-owner">' + esc(e.organizer_email) + '</span>' +
-    '<span class="admin-row-count">' + (e.total || 0) + ' photos &middot; ' + esc(plan) + '</span>' +
-    '<span class="admin-row-go" aria-hidden="true">&rsaquo;</span>';
+  row.innerHTML =
+    '<div class="evr-id">' +
+      '<div class="evr-top">' +
+        '<span class="evr-name">' + esc(e.name) + '</span>' +
+        '<span class="ev-badge ' + esc(e.status) + '">' + esc(e.status) + '</span>' +
+        (isNewBooking(e) ? '<span class="newbk-pill">New</span>' : '') +
+      '</div>' +
+      '<span class="evr-host">' + esc(e.host) + '</span>' +
+    '</div>' +
+    '<div class="evr-right">' +
+      '<div class="evr-meta">' +
+        '<span class="evr-owner">' + esc(e.organizer_email) + '</span>' +
+        '<span class="evr-count">' + (e.total || 0) + ' photos &middot; ' + esc(plan) + '</span>' +
+      '</div>' +
+      '<span class="evr-go" aria-hidden="true">&rsaquo;</span>' +
+    '</div>';
   const open = () => { location.hash = "#/e/" + encodeURIComponent(e.id); };
   row.addEventListener("click", open);
   row.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); open(); } });
@@ -155,8 +163,13 @@ function renderClients() {
   for (const c of sortClients(data.clients)) {
     const row = document.createElement("div");
     row.className = "admin-client";
-    row.innerHTML = '<div class="admin-client-email">' + esc(c.email) + '</div>' +
-      '<div class="admin-client-meta">' + (c.events || 0) + ' events &middot; ' + (c.photos || 0) + ' photos &middot; joined ' + fmtDate(c.created_at) + '</div>';
+    const initial = esc(((c.email || "?").trim().charAt(0) || "?").toUpperCase());
+    row.innerHTML =
+      '<div class="cl-mono">' + initial + '</div>' +
+      '<div class="cl-body">' +
+        '<div class="cl-email">' + esc(c.email) + '</div>' +
+        '<div class="cl-meta">' + (c.events || 0) + ' events &middot; ' + (c.photos || 0) + ' photos &middot; joined ' + fmtDate(c.created_at) + '</div>' +
+      '</div>';
     list.appendChild(row);
   }
 }
