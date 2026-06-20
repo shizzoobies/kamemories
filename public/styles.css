@@ -800,7 +800,11 @@ body.cinema .veil {
 /* ===== Operator console (admin) ===== */
 .admin-colhead { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; flex-wrap: wrap; }
 .admin-colhead-sp { margin-top: 32px; }
-.admin-h { font-family: "Playfair Display", serif; font-weight: 500; font-size: 1.4rem; margin: 0; }
+.admin-h { font-family: "Playfair Display", serif; font-weight: 500; font-size: 1.4rem; margin: 0; transition: color 0.15s ease; }
+.admin-caret { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 1.25rem; line-height: 1; padding: 0 2px; margin: 0 -2px 0 -4px; transition: transform 0.2s ease, color 0.2s ease; transform: rotate(90deg); }
+.admin-caret:hover { color: var(--ink); }
+.admin-colhead.collapsed .admin-caret { transform: rotate(0deg); }
+.admin-colhead.collapsed .admin-h { color: var(--muted); }
 .admin-count { color: var(--muted); font-size: 0.82rem; }
 .admin-tag { font-size: 0.64rem; letter-spacing: 0.18em; text-transform: uppercase; color: #0a1626; background: var(--silver); padding: 3px 10px; border-radius: 999px; align-self: center; }
 .admin-sub { color: var(--muted); font-size: 0.88rem; line-height: 1.55; margin: 0 0 14px; max-width: 64ch; }
@@ -808,17 +812,34 @@ body.cinema .veil {
 /* Console layout: align the stats row with the lists (drop the double 24px
    inset) and tighten the gap under the topbar so the sections sit evenly. */
 #console, #eventDetail { padding-top: 44px; }
-#console .cur-stats, #eventDetail .cur-stats { max-width: none; margin: 0 0 18px; padding: 0; }
-.admin-list { display: flex; flex-direction: column; gap: 10px; }
-.admin-empty { color: var(--faint); font-size: 0.9rem; }
-/* Event rows: an identity block (name, status, address) on the left and a
-   right-aligned meta block, so names breathe and nothing floats into a gap. */
+/* One divided stat bar instead of separate boxes. */
+#console .cur-stats, #eventDetail .cur-stats {
+  display: flex; flex-wrap: wrap; max-width: none; margin: 0 0 26px; padding: 0;
+  background: linear-gradient(180deg, var(--surface-2), var(--surface));
+  border: 1px solid var(--line-soft); border-radius: 14px; overflow: hidden;
+}
+#console .stat, #eventDetail .stat { flex: 1 1 110px; padding: 18px 14px; background: none; border: 0; border-left: 1px solid var(--line-soft); border-radius: 0; transition: none; }
+#console .stat:first-child, #eventDetail .stat:first-child { border-left: 0; }
+.stat-v.owed { color: #e8b873; }
+@media (max-width: 560px) {
+  #console .cur-stats, #eventDetail .cur-stats { display: grid; grid-template-columns: 1fr 1fr; }
+  #console .stat, #eventDetail .stat { border-top: 1px solid var(--line-soft); }
+  #console .stat:nth-child(2n+1), #eventDetail .stat:nth-child(2n+1) { border-left: 0; }
+  #console .stat:nth-child(-n+2), #eventDetail .stat:nth-child(-n+2) { border-top: 0; }
+}
+.admin-list { display: flex; flex-direction: column; }
+.admin-empty { color: var(--faint); font-size: 0.9rem; padding: 14px 4px; }
+/* Rows are not cards: a hairline divider, generous space, and a hover tint with
+   a silver edge do the work instead of a container around every item. */
 .admin-row {
   display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 14px 20px;
-  background: var(--surface); border: 1px solid var(--line-soft); border-radius: 14px; padding: 15px 18px 15px 20px;
-  cursor: pointer; transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  padding: 16px 14px; border-bottom: 1px solid var(--line-soft); position: relative; cursor: pointer;
+  transition: background 0.15s ease;
 }
-.admin-row:hover, .admin-row:focus-visible { border-color: var(--line); background: var(--surface-2); transform: translateY(-1px); box-shadow: 0 10px 26px rgba(0, 0, 0, 0.3); outline: none; }
+.admin-row:last-child { border-bottom: 0; }
+.admin-row::before { content: ""; position: absolute; left: 0; top: 9px; bottom: 9px; width: 2px; border-radius: 0 2px 2px 0; background: var(--silver); opacity: 0; transition: opacity 0.15s ease; }
+.admin-row:hover, .admin-row:focus-visible { background: var(--surface); outline: none; }
+.admin-row:hover::before, .admin-row:focus-visible::before { opacity: 0.8; }
 .evr-id { min-width: 0; }
 .evr-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .evr-name { font-family: "Playfair Display", serif; font-size: 1.16rem; color: var(--ink); line-height: 1.15; }
@@ -835,15 +856,16 @@ body.cinema .veil {
   .evr-meta { align-items: flex-start; text-align: left; flex-flow: row wrap; gap: 3px 12px; }
   .evr-owner { white-space: normal; word-break: break-word; }
 }
-.admin-clients { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
-.admin-client { display: flex; align-items: center; gap: 13px; background: var(--surface); border: 1px solid var(--line-soft); border-radius: 14px; padding: 14px 16px; transition: border-color 0.2s ease, transform 0.2s ease; }
-.admin-client:hover { border-color: var(--line); transform: translateY(-1px); }
-.cl-mono { flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); border: 1px solid var(--line); color: var(--silver-bright); font-family: "Playfair Display", serif; font-size: 1.1rem; }
-.cl-body { min-width: 0; }
+.admin-client { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 13px; padding: 13px 14px; border-bottom: 1px solid var(--line-soft); transition: background 0.15s ease; }
+.admin-client:last-child { border-bottom: 0; }
+.admin-client:hover { background: var(--surface); }
+.cl-mono { flex: 0 0 auto; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); border: 1px solid var(--line); color: var(--silver-bright); font-family: "Playfair Display", serif; font-size: 1.05rem; }
+.cl-body { min-width: 0; flex: 1 1 auto; }
 .cl-email { color: var(--ink); font-weight: 600; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cl-meta { color: var(--faint); font-size: 0.78rem; margin-top: 3px; }
-.code-card { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; background: var(--surface); border: 1px solid var(--line-soft); border-radius: 14px; padding: 15px 18px; transition: border-color 0.2s ease, transform 0.2s ease; }
-.code-card:hover { border-color: var(--line); transform: translateY(-1px); }
+.cl-meta { margin-left: auto; color: var(--faint); font-size: 0.8rem; white-space: nowrap; }
+.code-card { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; padding: 16px 14px; border-bottom: 1px solid var(--line-soft); transition: background 0.15s ease; }
+.code-card:last-child { border-bottom: 0; }
+.code-card:hover { background: var(--surface); }
 .code-card.off { opacity: 0.5; }
 .code-tag { font-weight: 700; letter-spacing: 0.06em; color: #0a1626; background: var(--silver); border-radius: 7px; padding: 4px 10px; font-size: 0.84rem; }
 .code-main { display: flex; flex-direction: column; gap: 2px; min-width: 150px; }

@@ -41,6 +41,8 @@ async function boot() {
   renderStats();
   renderClients();
   loadCodes();
+  setupCollapse("codesColhead", "codesWrap", "kmCodesOpen");
+  setupCollapse("clientsColhead", "clientsWrap", "kmClientsOpen");
   if (data.assistant === false) $("asstNote").textContent = "The assistant is not switched on yet. Add the ANTHROPIC_API_KEY secret and it will appear here.";
   window.addEventListener("hashchange", route);
   route();
@@ -71,22 +73,37 @@ function renderWho() {
 }
 
 function renderStats() {
+  const owed = data.stats.owed_cents || 0;
   const items = [
     { label: "Clients", value: data.stats.clients },
     { label: "Events", value: data.stats.events },
     { label: "Photos", value: data.stats.photos },
     { label: "Billing", value: data.billing ? "Live" : "Off" },
+    { label: "Owed", value: money(owed), owed: true },
   ];
   const wrap = $("stats");
   wrap.innerHTML = "";
   for (const it of items) {
     const card = document.createElement("div");
     card.className = "stat";
-    const v = document.createElement("div"); v.className = "stat-v"; v.textContent = it.value;
+    const v = document.createElement("div");
+    v.className = "stat-v" + (it.owed ? " owed-v" : "");
+    if (it.owed) { v.id = "statOwed"; if (owed > 0) v.classList.add("owed"); }
+    v.textContent = it.value;
     const l = document.createElement("div"); l.className = "stat-l"; l.textContent = it.label;
     card.append(v, l);
     wrap.appendChild(card);
   }
+}
+
+// Keep the top "Owed to vendors" figure in sync with the codes list (which has
+// the live per-code commission and payout totals).
+function recomputeOwed() {
+  const el = $("statOwed");
+  if (!el) return;
+  const total = codes.reduce((n, c) => n + Math.max(0, (c.commission_cents || 0) - (c.paid_cents || 0)), 0);
+  el.textContent = money(total);
+  el.classList.toggle("owed", total > 0);
 }
 
 // ---- List view ----
@@ -166,10 +183,8 @@ function renderClients() {
     const initial = esc(((c.email || "?").trim().charAt(0) || "?").toUpperCase());
     row.innerHTML =
       '<div class="cl-mono">' + initial + '</div>' +
-      '<div class="cl-body">' +
-        '<div class="cl-email">' + esc(c.email) + '</div>' +
-        '<div class="cl-meta">' + (c.events || 0) + ' events &middot; ' + (c.photos || 0) + ' photos &middot; joined ' + fmtDate(c.created_at) + '</div>' +
-      '</div>';
+      '<div class="cl-body"><div class="cl-email">' + esc(c.email) + '</div></div>' +
+      '<div class="cl-meta">' + (c.events || 0) + ' events &middot; ' + (c.photos || 0) + ' photos &middot; joined ' + fmtDate(c.created_at) + '</div>';
     list.appendChild(row);
   }
 }
@@ -533,6 +548,7 @@ async function loadCodes() {
     codes = d.codes || [];
     if (d.pool) POOL = d.pool;
     renderCodes();
+    recomputeOwed();
   } catch (e) {}
 }
 
@@ -680,6 +696,7 @@ $("payoutForm").addEventListener("submit", async (e) => {
     payoutCode.commission_cents = d.commission_cents;
     payoutCode.paid_cents = d.paid_cents;
     renderCodes();
+    recomputeOwed();
     payoutSummary(payoutCode);
     $("poNote").value = ""; $("poReceipt").value = "";
     setMsg("payoutMsg", "Payout recorded.", false);
@@ -691,5 +708,26 @@ $("payoutForm").addEventListener("submit", async (e) => {
     btn.disabled = false;
   }
 });
+
+// Collapsible section: the caret (or its heading) folds the content away. State
+// is remembered per operator so a tidy console stays tidy across visits.
+function setupCollapse(colheadId, wrapId, key) {
+  const colhead = document.getElementById(colheadId);
+  const wrap = document.getElementById(wrapId);
+  if (!colhead || !wrap) return;
+  const caret = colhead.querySelector(".admin-caret");
+  const h2 = colhead.querySelector(".admin-h");
+  let open = true;
+  try { open = localStorage.getItem(key) !== "0"; } catch (e) {}
+  const apply = () => {
+    wrap.style.display = open ? "" : "none";
+    colhead.classList.toggle("collapsed", !open);
+    if (caret) caret.setAttribute("aria-expanded", open ? "true" : "false");
+  };
+  const toggle = () => { open = !open; try { localStorage.setItem(key, open ? "1" : "0"); } catch (e) {} apply(); };
+  if (caret) caret.addEventListener("click", toggle);
+  if (h2) { h2.style.cursor = "pointer"; h2.addEventListener("click", toggle); }
+  apply();
+}
 
 boot();

@@ -643,11 +643,21 @@ async function adminOverview(request, env) {
   }));
   const photos = clients.reduce((n, c) => n + (c.photos || 0), 0);
   const newBookings = events.filter((e) => e.paid_at && !e.reviewed_at).length;
+  // Total commission still owed to vendors (per code: commission earned minus
+  // payouts, floored at zero so an overpaid code never offsets another).
+  const owedRow = await env.DB.prepare(
+    `SELECT COALESCE(SUM(owed), 0) AS owed FROM (
+       SELECT MAX(0,
+         (SELECT COALESCE(SUM(commission_cents), 0) FROM vendor_redemptions r WHERE r.code_id = vc.id)
+         - (SELECT COALESCE(SUM(amount_cents), 0) FROM vendor_payouts p WHERE p.code_id = vc.id)
+       ) AS owed FROM vendor_codes vc
+     )`
+  ).first();
   return json({
     me: gate.org,
     clients: clients,
     events: events,
-    stats: { clients: clients.length, events: events.length, photos: photos, newBookings: newBookings },
+    stats: { clients: clients.length, events: events.length, photos: photos, newBookings: newBookings, owed_cents: owedRow ? owedRow.owed : 0 },
     billing: billingOn(env),
     assistant: !!env.ANTHROPIC_API_KEY,
   });

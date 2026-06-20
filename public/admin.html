@@ -51,7 +51,9 @@
   <input id="eventsSearch" class="cur-input admin-search" type="search" placeholder="Search by event, address, or client" aria-label="Search events" />
   <div id="eventsList" class="admin-list"></div>
 
-  <div class="admin-colhead admin-colhead-sp"><h2 class="admin-h">Vendor codes</h2>
+  <div class="admin-colhead admin-colhead-sp" id="codesColhead">
+    <button class="admin-caret" type="button" aria-label="Collapse vendor codes" aria-expanded="true">&rsaquo;</button>
+    <h2 class="admin-h">Vendor codes</h2>
     <select id="codesSort" class="admin-sort" aria-label="Sort vendor codes">
       <option value="new">Newest</option>
       <option value="owed">Most owed</option>
@@ -61,10 +63,14 @@
     </select>
     <button class="btn" id="newCodeBtn" type="button">New code</button>
   </div>
-  <p class="admin-sub">Give a vendor a referral code. They pick the customer discount (up to 50%); you owe them the rest of the 50% and keep the other half. Used at checkout.</p>
-  <div id="codesList" class="admin-list"></div>
+  <div id="codesWrap">
+    <p class="admin-sub">Give a vendor a referral code. They pick the customer discount (up to 50%); you owe them the rest of the 50% and keep the other half. Used at checkout.</p>
+    <div id="codesList" class="admin-list"></div>
+  </div>
 
-  <div class="admin-colhead admin-colhead-sp"><h2 class="admin-h">Clients</h2><span class="admin-count" id="clientsCount"></span>
+  <div class="admin-colhead admin-colhead-sp" id="clientsColhead">
+    <button class="admin-caret" type="button" aria-label="Collapse clients" aria-expanded="true">&rsaquo;</button>
+    <h2 class="admin-h">Clients</h2><span class="admin-count" id="clientsCount"></span>
     <select id="clientsSort" class="admin-sort" aria-label="Sort clients">
       <option value="new">Newest</option>
       <option value="name">Email A to Z</option>
@@ -72,7 +78,9 @@
       <option value="photos">Most photos</option>
     </select>
   </div>
-  <div id="clientsList" class="admin-clients"></div>
+  <div id="clientsWrap">
+    <div id="clientsList" class="admin-list"></div>
+  </div>
 </section>
 
 <!-- EVENT DETAIL VIEW -->
