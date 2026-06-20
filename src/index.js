@@ -1423,22 +1423,43 @@ async function adminDeleteCode(request, env, id) {
 async function adminRevenue(request, env) {
   const gate = await requireAdmin(request, env);
   if (gate.error) return gate.error;
-  const totalRow = await env.DB.prepare(
-    "SELECT COUNT(*) AS n, COALESCE(SUM(amount_cents), 0) AS amount, COALESCE(SUM(discount_cents), 0) AS discount FROM payments"
-  ).first();
-  const { results: byPackage } = await env.DB.prepare(
-    "SELECT label, COUNT(*) AS n, COALESCE(SUM(amount_cents), 0) AS amount FROM payments GROUP BY label ORDER BY amount DESC"
-  ).all();
-  const { results: recent } = await env.DB.prepare(
-    `SELECT p.id, p.label, p.amount_cents, p.discount_cents, p.source, p.created_at, e.name AS event_name
+  // Each line, with the affiliate (vendor commission) for that same session and
+  // the net we keep (paid minus affiliate).
+  const { results: rowsRaw } = await env.DB.prepare(
+    `SELECT p.id, p.label, p.amount_cents, p.discount_cents, p.source, p.created_at, e.name AS event_name,
+            COALESCE((SELECT SUM(vr.commission_cents) FROM vendor_redemptions vr WHERE vr.stripe_session = p.stripe_session), 0) AS affiliate_cents
      FROM payments p LEFT JOIN events e ON e.id = p.event_id
-     ORDER BY p.created_at DESC LIMIT 25`
+     ORDER BY p.created_at DESC LIMIT 1000`
   ).all();
-  return json({
-    total: { count: totalRow ? totalRow.n : 0, amount_cents: totalRow ? totalRow.amount : 0, discount_cents: totalRow ? totalRow.discount : 0 },
-    by_package: byPackage || [],
-    recent: recent || [],
-  });
+  const payments = (rowsRaw || []).map((r) => ({
+    id: r.id, label: r.label, source: r.source, event_name: r.event_name, created_at: r.created_at,
+    amount_cents: r.amount_cents || 0, discount_cents: r.discount_cents || 0, affiliate_cents: r.affiliate_cents || 0,
+    net_cents: (r.amount_cents || 0) - (r.affiliate_cents || 0),
+  }));
+  const total = payments.reduce((a, r) => ({
+    count: a.count + 1,
+    amount_cents: a.amount_cents + r.amount_cents,
+    discount_cents: a.discount_cents + r.discount_cents,
+    affiliate_cents: a.affiliate_cents + r.affiliate_cents,
+    net_cents: a.net_cents + r.net_cents,
+  }), { count: 0, amount_cents: 0, discount_cents: 0, affiliate_cents: 0, net_cents: 0 });
+  const byMap = {};
+  for (const r of payments) {
+    const k = r.label || "Other";
+    if (!byMap[k]) byMap[k] = { label: k, n: 0, amount: 0 };
+    byMap[k].n += 1; byMap[k].amount += r.amount_cents;
+  }
+  const by_package = Object.values(byMap).sort((a, b) => b.amount - a.amount);
+  return json({ total, by_package, payments });
+}
+
+// Clear a line from the revenue ledger (a test, refund, or cancellation). Removes
+// only the ledger row; it does not refund anything in Stripe.
+async function adminDeletePayment(request, env, id) {
+  const gate = await requireAdmin(request, env);
+  if (gate.error) return gate.error;
+  await env.DB.prepare("DELETE FROM payments WHERE id = ?").bind(id).run();
+  return json({ ok: true, id });
 }
 
 async function adminListPackageLinks(request, env) {
@@ -1709,6 +1730,8 @@ export default {
         const adminReceiptM = path.match(/^\/api\/admin\/payouts\/([^/]+)\/receipt$/);
         if (adminReceiptM && method === "GET") return adminReceipt(request, env, decodeURIComponent(adminReceiptM[1]));
         if (path === "/api/admin/revenue" && method === "GET") return adminRevenue(request, env);
+        const adminPay = path.match(/^\/api\/admin\/payments\/([^/]+)$/);
+        if (adminPay && method === "DELETE") return adminDeletePayment(request, env, decodeURIComponent(adminPay[1]));
         if (path === "/api/admin/package-links" && method === "GET") return adminListPackageLinks(request, env);
         if (path === "/api/admin/package-links" && method === "POST") return adminCreatePackageLink(request, env, url);
         const adminPl = path.match(/^\/api\/admin\/package-links\/([^/]+)$/);

@@ -934,22 +934,52 @@ function renderRevenue() {
       bd.appendChild(chip);
     }
   }
-  const rec = $("revenueRecent");
-  const recH = document.querySelector(".rev-recent-h");
-  rec.innerHTML = "";
-  if (!(revenue.recent || []).length) { rec.style.display = "none"; if (recH) recH.style.display = "none"; return; }
-  rec.style.display = ""; if (recH) recH.style.display = "";
-  for (const p of revenue.recent) {
-    const row = document.createElement("div");
-    row.className = "rev-row";
+  const table = $("revenueTable");
+  const rows = revenue.payments || [];
+  if (!rows.length) { table.innerHTML = ""; return; }
+  const ZERO = '<span class="rev-zero">&middot;</span>';
+  let h = '<thead><tr>' +
+    '<th>Package</th><th>Date</th>' +
+    '<th class="num">Total</th><th class="num">Discount</th>' +
+    '<th class="num">Affiliate</th><th class="num">Net</th><th class="rev-x"></th>' +
+    '</tr></thead><tbody>';
+  for (const p of rows) {
     const via = p.source === "package_link" ? "package link" : (p.event_name ? esc(p.event_name) : "event checkout");
-    row.innerHTML =
-      '<div class="rev-row-main"><strong>' + esc(p.label || "Payment") + '</strong>' +
-        '<span class="rev-row-via">' + via + ((p.discount_cents || 0) > 0 ? " · " + money(p.discount_cents) + " off" : "") + '</span></div>' +
-      '<div class="rev-row-amt">' + money(p.amount_cents) + '</div>' +
-      '<div class="rev-row-date">' + fmtDate(p.created_at) + '</div>';
-    rec.appendChild(row);
+    h += '<tr>' +
+      '<td><strong>' + esc(p.label || "Payment") + '</strong><span class="rev-src">' + via + '</span></td>' +
+      '<td class="rev-date">' + fmtDate(p.created_at) + '</td>' +
+      '<td class="num rev-total">' + money(p.amount_cents) + '</td>' +
+      '<td class="num rev-disc">' + ((p.discount_cents || 0) > 0 ? money(p.discount_cents) : ZERO) + '</td>' +
+      '<td class="num rev-aff">' + ((p.affiliate_cents || 0) > 0 ? money(p.affiliate_cents) : ZERO) + '</td>' +
+      '<td class="num rev-net">' + money(p.net_cents) + '</td>' +
+      '<td class="rev-x"><button class="rev-del" type="button" data-id="' + esc(p.id) + '" title="Remove this line" aria-label="Remove this line">&times;</button></td>' +
+      '</tr>';
   }
+  h += '</tbody><tfoot><tr>' +
+    '<td>Totals</td><td></td>' +
+    '<td class="num rev-total">' + money(t.amount_cents) + '</td>' +
+    '<td class="num rev-disc">' + money(t.discount_cents) + '</td>' +
+    '<td class="num rev-aff">' + money(t.affiliate_cents) + '</td>' +
+    '<td class="num rev-net">' + money(t.net_cents) + '</td>' +
+    '<td class="rev-x"></td>' +
+    '</tr></tfoot>';
+  table.innerHTML = h;
+  table.querySelectorAll(".rev-del").forEach((b) => {
+    b.addEventListener("click", () => removePayment(b.getAttribute("data-id")));
+  });
+}
+
+// Clear a line from the ledger (a test, refund, or cancellation). Records-only;
+// it does not refund anything in Stripe.
+async function removePayment(id) {
+  if (!id) return;
+  if (!confirm("Remove this line from revenue? It clears the record here only and does not refund anything in Stripe.")) return;
+  try {
+    const r = await fetch("/api/admin/payments/" + encodeURIComponent(id), { method: "DELETE", credentials: "same-origin" });
+    if (!r.ok) { toast("Could not remove that line.", true); return; }
+    await loadRevenue();
+    toast("Line cleared.");
+  } catch (e) { toast("No connection.", true); }
 }
 
 // ---- Package links ----
