@@ -12,7 +12,7 @@ let currentId = null;       // event open in the detail view
 const chat = [];            // assistant messages [{role, content}]
 let codes = [];             // vendor referral codes
 let POOL = 50;              // margin pool per code (customer discount + vendor commission)
-let eventSort = "new", clientSort = "new", codeSort = "new";
+let eventSort = "soon", clientSort = "new", codeSort = "new";
 
 let toastTimer = null;
 function toast(msg, isErr) {
@@ -27,6 +27,67 @@ function setMsg(id, text, isErr) { const el = $(id); el.textContent = text || ""
 function esc(s) { return (s || "").toString().replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 function fmtDate(ms) { try { return new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }); } catch (e) { return ""; } }
 const PLAN_LABEL = { intimate: "Intimate", signature: "Signature", grand: "Grand" };
+
+// ---- Event date parsing + live countdown ----
+// event_date is free text, so parse best effort: a clean date first, then ranges
+// like "July 9-12, 2026" (take the start), then any "Month Day ... Year".
+function parseEventDate(s) {
+  if (!s) return null;
+  s = String(s).trim();
+  // Trust a direct parse only when a 4-digit year is present, so casual strings
+  // like "June 20th-June23rd" do not parse to a garbage year.
+  let t = Date.parse(s);
+  if (!isNaN(t) && /\d{4}/.test(s)) return t;
+  // Normalize dashes (via char code, to keep dash characters out of source) and
+  // drop ordinal suffixes, then take the month and first day, assuming a year.
+  const norm = s.split(String.fromCharCode(0x2013)).join("-")
+    .split(String.fromCharCode(0x2014)).join("-")
+    .replace(/(\d{1,2})(st|nd|rd|th)\b/gi, "$1");
+  const m = norm.match(/([A-Za-z]{3,})\.?\s+(\d{1,2})(?:\s*(?:-|to)\s*(?:[A-Za-z]+\.?\s*)?\d{1,2})?(?:,?\s*(\d{4}))?/i);
+  if (m) {
+    const year = m[3] ? m[3] : assumeYear(m[1], m[2]);
+    t = Date.parse(m[1] + " " + m[2] + ", " + year);
+    if (!isNaN(t)) return t;
+  }
+  return null;
+}
+function assumeYear(monthName, day) {
+  const y = new Date().getFullYear();
+  const t = Date.parse(monthName + " " + day + ", " + y);
+  if (isNaN(t)) return y;
+  // A date well in the past with no year was probably meant for next year.
+  return t < Date.now() - 60 * 86400000 ? y + 1 : y;
+}
+function eventTs(e) {
+  if (e._ts === undefined) e._ts = parseEventDate(e.event_date);
+  return e._ts;
+}
+function countdownText(ts) {
+  if (ts == null) return null;
+  const day = 86400000;
+  const diff = ts - Date.now();
+  if (diff <= 0) {
+    const d = Math.floor(-diff / day);
+    if (d === 0) return { text: "happening today", cls: "now" };
+    return { text: d + (d === 1 ? " day ago" : " days ago"), cls: "past" };
+  }
+  const d = Math.floor(diff / day);
+  const h = Math.floor((diff % day) / 3600000);
+  if (d === 0) {
+    if (h === 0) { const mn = Math.floor((diff % 3600000) / 60000); return { text: "in " + mn + " min", cls: "now" }; }
+    return { text: "in " + h + (h === 1 ? " hr" : " hrs"), cls: "now" };
+  }
+  if (d <= 2) return { text: "in " + d + (d === 1 ? " day" : " days") + (h ? ", " + h + (h === 1 ? " hr" : " hrs") : ""), cls: "soon" };
+  return { text: "in " + d + " days", cls: d <= 14 ? "near" : "" };
+}
+let countdownTimer = null;
+function updateCountdowns() {
+  document.querySelectorAll(".evr-countdown[data-ts]").forEach((el) => {
+    const cd = countdownText(Number(el.getAttribute("data-ts")));
+    if (cd) { el.textContent = cd.text; el.className = "evr-countdown " + cd.cls; }
+  });
+  if (!countdownTimer) countdownTimer = setInterval(updateCountdowns, 60000);
+}
 
 async function boot() {
   let r;
@@ -77,7 +138,6 @@ function renderStats() {
   const items = [
     { label: "Clients", value: data.stats.clients },
     { label: "Events", value: data.stats.events },
-    { label: "Photos", value: data.stats.photos },
     { label: "Billing", value: data.billing ? "Live" : "Off" },
     { label: "Owed", value: money(owed), owed: true },
   ];
@@ -139,9 +199,12 @@ function renderEvents() {
   const list = $("eventsList");
   list.innerHTML = "";
   const rows = data.events.filter(eventMatches);
-  $("eventsCount").textContent = rows.length + (rows.length === 1 ? " event" : " events");
+  const sumPhotos = rows.reduce((n, e) => n + (e.total || 0), 0);
+  $("eventsCount").textContent = rows.length + (rows.length === 1 ? " event" : " events") +
+    " · " + sumPhotos + (sumPhotos === 1 ? " photo" : " photos");
   if (!rows.length) { list.innerHTML = '<p class="admin-empty">No events match.</p>'; return; }
   for (const e of sortEvents(rows)) list.appendChild(eventRow(e));
+  updateCountdowns();
 }
 
 function eventRow(e) {
@@ -150,6 +213,9 @@ function eventRow(e) {
   row.tabIndex = 0;
   row.setAttribute("role", "button");
   const plan = e.plan ? PLAN_LABEL[e.plan] : "No plan";
+  const ts = eventTs(e);
+  const cd = ts != null ? countdownText(ts) : null;
+  const cdHtml = cd ? '<span class="evr-countdown ' + cd.cls + '" data-ts="' + ts + '">' + esc(cd.text) + '</span>' : '';
   row.innerHTML =
     '<div class="evr-id">' +
       '<div class="evr-top">' +
@@ -161,6 +227,7 @@ function eventRow(e) {
     '</div>' +
     '<div class="evr-right">' +
       '<div class="evr-meta">' +
+        cdHtml +
         '<span class="evr-owner">' + esc(e.organizer_email) + '</span>' +
         '<span class="evr-count">' + (e.total || 0) + ' photos &middot; ' + esc(plan) + '</span>' +
       '</div>' +
@@ -192,7 +259,23 @@ function renderClients() {
 // ---- Sorting (every list in the console) ----
 function sortEvents(rows) {
   const a = rows.slice();
-  if (eventSort === "name") a.sort((x, y) => (x.name || "").localeCompare(y.name || ""));
+  if (eventSort === "soon") {
+    // Soonest upcoming (today counts as upcoming, so an event in progress leads);
+    // then past events (most recent first); then events with no readable date.
+    const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+    const today = midnight.getTime();
+    a.sort((x, y) => {
+      const tx = eventTs(x), ty = eventTs(y);
+      const ux = tx != null && tx >= today, uy = ty != null && ty >= today;
+      if (ux && uy) return tx - ty;
+      if (ux !== uy) return ux ? -1 : 1;
+      const px = tx != null, py = ty != null;
+      if (px && py) return ty - tx;
+      if (px !== py) return px ? -1 : 1;
+      return y.created_at - x.created_at;
+    });
+  }
+  else if (eventSort === "name") a.sort((x, y) => (x.name || "").localeCompare(y.name || ""));
   else if (eventSort === "status") a.sort((x, y) => (x.status || "").localeCompare(y.status || "") || (y.created_at - x.created_at));
   else if (eventSort === "paid") a.sort((x, y) => (y.paid_at || 0) - (x.paid_at || 0) || (y.created_at - x.created_at));
   else if (eventSort === "photos") a.sort((x, y) => (y.total || 0) - (x.total || 0));
