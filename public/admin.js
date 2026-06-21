@@ -101,6 +101,7 @@ async function boot() {
   renderWho();
   renderStats();
   renderClients();
+  renderDemo();
   loadCodes();
   loadRevenue();
   loadPackageLinks();
@@ -108,6 +109,7 @@ async function boot() {
   setupCollapse("linksColhead", "linksWrap", "kmLinksOpen");
   setupCollapse("codesColhead", "codesWrap", "kmCodesOpen");
   setupCollapse("clientsColhead", "clientsWrap", "kmClientsOpen");
+  setupCollapse("demoColhead", "demoWrap", "kmDemoOpen", false);
   if (data.assistant === false) $("asstNote").textContent = "The assistant is not switched on yet. Add the ANTHROPIC_API_KEY secret and it will appear here.";
   window.addEventListener("hashchange", route);
   route();
@@ -139,9 +141,10 @@ function renderWho() {
 
 function renderStats() {
   const owed = data.stats.owed_cents || 0;
+  const eventsN = (data.events || []).filter((e) => !isDemo(e)).length;
   const items = [
     { label: "Clients", value: data.stats.clients },
-    { label: "Events", value: data.stats.events },
+    { label: "Events", value: eventsN },
     { label: "Billing", value: data.billing ? "Live" : "Off" },
     { label: "Owed", value: money(owed), owed: true },
   ];
@@ -177,6 +180,7 @@ function showList() {
   $("console").style.display = "block";
   renderNewBookings();
   renderEvents();
+  renderDemo();
   window.scrollTo(0, 0);
 }
 
@@ -187,10 +191,11 @@ function eventMatches(e) {
 }
 
 function isNewBooking(e) { return !!(e && e.paid_at && !e.reviewed_at); }
+function isDemo(e) { return !!(e && e.slug === "demo"); }
 
 function renderNewBookings() {
   const wrap = $("newBookings");
-  const rows = data.events.filter(isNewBooking);
+  const rows = data.events.filter((e) => isNewBooking(e) && !isDemo(e));
   if (!rows.length) { wrap.style.display = "none"; return; }
   wrap.style.display = "block";
   $("newbkCount").textContent = rows.length + (rows.length === 1 ? " booking" : " bookings");
@@ -202,12 +207,28 @@ function renderNewBookings() {
 function renderEvents() {
   const list = $("eventsList");
   list.innerHTML = "";
-  const rows = data.events.filter(eventMatches);
+  const rows = data.events.filter((e) => !isDemo(e) && eventMatches(e));
   const sumPhotos = rows.reduce((n, e) => n + (e.total || 0), 0);
   $("eventsCount").textContent = rows.length + (rows.length === 1 ? " event" : " events") +
     " · " + sumPhotos + (sumPhotos === 1 ? " photo" : " photos");
-  if (!rows.length) { list.innerHTML = '<p class="admin-empty">No events match.</p>'; return; }
+  if (!rows.length) { list.innerHTML = '<p class="admin-empty">' + (eventsFilter ? "No events match." : "No live events yet.") + '</p>'; return; }
   for (const e of sortEvents(rows)) list.appendChild(eventRow(e));
+  updateCountdowns();
+}
+
+// The demo lives in its own collapsed section at the bottom, kept out of the
+// live events list, stats, and new-bookings above (matched by slug "demo").
+function renderDemo() {
+  const list = $("demoList");
+  if (!list) return;
+  const rows = (data.events || []).filter(isDemo);
+  const count = $("demoCount");
+  if (count) count.textContent = rows.length ? (rows.length + (rows.length === 1 ? " event" : " events")) : "none";
+  const link = $("demoLink");
+  if (link && rows[0] && rows[0].slug) link.href = "https://" + rows[0].slug + ".kamemories.com";
+  list.innerHTML = "";
+  if (!rows.length) { list.innerHTML = '<p class="admin-empty">No demo event right now.</p>'; return; }
+  for (const e of rows) list.appendChild(eventRow(e));
   updateCountdowns();
 }
 
@@ -887,14 +908,14 @@ $("payoutForm").addEventListener("submit", async (e) => {
 
 // Collapsible section: the caret (or its heading) folds the content away. State
 // is remembered per operator so a tidy console stays tidy across visits.
-function setupCollapse(colheadId, wrapId, key) {
+function setupCollapse(colheadId, wrapId, key, defaultOpen) {
   const colhead = document.getElementById(colheadId);
   const wrap = document.getElementById(wrapId);
   if (!colhead || !wrap) return;
   const caret = colhead.querySelector(".admin-caret");
   const h2 = colhead.querySelector(".admin-h");
-  let open = true;
-  try { open = localStorage.getItem(key) !== "0"; } catch (e) {}
+  let open = defaultOpen !== false;
+  try { const v = localStorage.getItem(key); if (v !== null) open = v !== "0"; } catch (e) {}
   const apply = () => {
     wrap.style.display = open ? "" : "none";
     colhead.classList.toggle("collapsed", !open);
