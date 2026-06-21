@@ -73,7 +73,7 @@
 
   // ---- Name personalization. The event scripts fill these from the API after
   // load, so a MutationObserver keeps the visitor's name on top. ----
-  const NAME_TARGETS = ["names", "brand", "footName", "eventName"];
+  const NAME_TARGETS = ["names", "footName", "eventName"];
   function applyName(n) {
     n = (n || "").trim();
     if (!n) return;

@@ -233,6 +233,9 @@ body {
 .topbar { display: flex; align-items: center; justify-content: space-between; max-width: 1120px; margin: 0 auto; padding: 20px 24px; }
 .topbar .brand { font-family: "Playfair Display", serif; font-size: 1.05rem; letter-spacing: 0.06em; color: var(--ink); text-decoration: none; }
 .topbar .brand span { color: var(--silver); }
+.topbar .brand-logo { display: inline-flex; align-items: center; padding: 2px 0; }
+.topbar .brand-logo img { height: 44px; width: auto; display: block; }
+@media (max-width: 560px) { .topbar .brand-logo img { height: 36px; } }
 .topbar nav { display: flex; gap: 22px; align-items: center; }
 .topbar nav a { color: var(--muted); text-decoration: none; font-size: 0.86rem; letter-spacing: 0.04em; }
 .topbar nav a:hover { color: var(--ink); }

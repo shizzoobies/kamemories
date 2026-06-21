@@ -27,7 +27,6 @@ async function loadEvent() {
     const { event } = await r.json();
     if (!event) return;
     document.title = event.name;
-    setText("brand", event.name);
     setText("names", event.name);
     setText("footName", event.name);
     const cinema = !!(event.features && event.features.video);

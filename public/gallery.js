@@ -22,7 +22,6 @@ async function loadEventName() {
     if (!r.ok) return;
     const { event } = await r.json();
     if (event && event.name) {
-      $("brand").textContent = event.name;
       document.title = "The gallery . " + event.name;
     }
   } catch {}
