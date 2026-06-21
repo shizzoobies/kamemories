@@ -106,7 +106,7 @@ public/add.html        guest capture page (subdomain), the QR target
 public/capture.js      camera, capture, downscale, thumbnail, upload, quota UI
 public/event-404.html  shown on a subdomain with no active event
 public/styles.css      Midnight Pearl theme plus the commercial layer
-public/favicon.svg     navy and silver mark
+public/favicon.png     navy tile, ivory K&A monogram (apple-touch-icon.png too)
 ```
 
 ## API contract
