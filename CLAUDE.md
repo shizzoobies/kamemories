@@ -144,7 +144,8 @@ for navigations.
 
 `organizers`, `login_tokens` (token_hash), `sessions` (id_hash), `events`,
 `uploads`, `likes`, `vendor_codes`, `vendor_redemptions`, `vendor_payouts`,
-`payments`, `package_links`. Tokens and session ids are stored as sha-256
+`payments`, `package_links`, and the cold-outreach tables (`outreach_recipients`,
+`outreach_campaigns`, `outreach_sends`, `tracked_links`, `tracking_events`). Tokens and session ids are stored as sha-256
 hashes, never raw. `uploads` is scoped by `event_id`; R2
 key format is `{event_id}/{day}/{uuid}.{ext}` and the thumbnail is the same with
 a `.t` before the extension. `likes` (primary key `upload_id` + `gid`) holds one
@@ -157,8 +158,13 @@ receipt stored in R2 under `payouts/`), so owed = commission minus payouts.
 purchase or a package link), written by the webhook (idempotent on the session),
 so `/admin` totals money in by package. `package_links` are operator-made Stripe
 Payment Links for selling a package (standard plan or custom name + price);
-paying one auto-creates a hidden paid draft event for the operator to finish. See
-`schema.sql`.
+paying one auto-creates a hidden paid draft event for the operator to finish. The
+outreach tables back first-party email open/click/unsubscribe tracking for cold
+vendor outreach at the host-agnostic `/t/` endpoints (`/t/o/:token.gif` pixel,
+`/t/c/:token/:linkId` click whose destination is read from `tracked_links` so it
+cannot be an open redirect, `/t/u/:token` unsubscribe), logged to `tracking_events`
+and surfaced in `/admin`; sending stays in Gmail (the Worker only preps each send).
+Migration 0008. See `schema.sql`.
 
 ## Worker constants
 

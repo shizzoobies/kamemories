@@ -1661,14 +1661,137 @@ async function asset(env, url, request, pathname, status) {
 // Router
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Cold-outreach email tracking (first-party). An open pixel, a click redirect,
+// and an unsubscribe, all logged to D1 and surfaced in /admin. Sending stays in
+// Gmail; the Worker registers each send (a token + the campaign's tracked links)
+// and serves these /t/ endpoints.
+// ---------------------------------------------------------------------------
+
+// 1x1 transparent GIF.
+const TRACK_PIXEL = Uint8Array.from(
+  atob("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"),
+  (c) => c.charCodeAt(0)
+);
+// User agents that fetch images on the recipient's behalf (privacy proxies and
+// security scanners), firing the pixel without a human looking. Flagged so they
+// can be left out of headline open counts.
+const TRACK_PROXY_UA = /GoogleImageProxy|YahooMailProxy|Barracuda|Mimecast|Proofpoint|Cloudmark|Microsoft|GoogleDocs/i;
+
+function trackPixelResponse() {
+  return new Response(TRACK_PIXEL, {
+    headers: {
+      "content-type": "image/gif",
+      "cache-control": "no-store, no-cache, must-revalidate, private, max-age=0",
+      "pragma": "no-cache",
+      "expires": "0",
+    },
+  });
+}
+
+// Log without delaying the response. With ctx we use waitUntil; otherwise the
+// write still fires, just unawaited.
+function fireAndForget(ctx, promise) {
+  const p = Promise.resolve(promise).catch(() => {});
+  if (ctx && typeof ctx.waitUntil === "function") ctx.waitUntil(p);
+}
+
+// GET /t/o/{send_token}.gif -> log an open (only for a real send token), return
+// the pixel. The SELECT inserts a row only when a matching send exists.
+async function trackOpen(request, env, ctx, sendToken) {
+  const ua = request.headers.get("user-agent") || "";
+  const ip = request.headers.get("cf-connecting-ip") || "";
+  const country = (request.cf && request.cf.country) || "";
+  const prefetch = TRACK_PROXY_UA.test(ua) ? 1 : 0;
+  fireAndForget(ctx, env.DB.prepare(
+    `INSERT INTO tracking_events (send_id, event_type, user_agent, ip, country, is_probably_prefetch, created_at)
+     SELECT id, 'open', ?, ?, ?, ?, ?
+     FROM outreach_sends WHERE id = ?`
+  ).bind(ua, ip, country, prefetch, Date.now(), sendToken).run());
+  return trackPixelResponse();
+}
+
+// GET /t/c/{send_token}/{link_id} -> log a click, then 302 to the destination
+// looked up from tracked_links (never from the request), so it cannot be turned
+// into an open redirect. Unknown token or link returns 404 and never redirects.
+async function trackClick(request, env, ctx, sendToken, linkId) {
+  const row = await env.DB.prepare(
+    `SELECT l.destination_url AS dest
+       FROM tracked_links l
+       JOIN outreach_sends s ON s.campaign_id = l.campaign_id
+      WHERE l.id = ? AND s.id = ?`
+  ).bind(linkId, sendToken).first();
+  if (!row || !row.dest) return new Response("Not found.", { status: 404 });
+  const ua = request.headers.get("user-agent") || "";
+  const ip = request.headers.get("cf-connecting-ip") || "";
+  const country = (request.cf && request.cf.country) || "";
+  fireAndForget(ctx, env.DB.prepare(
+    `INSERT INTO tracking_events (send_id, event_type, link_id, user_agent, ip, country, created_at)
+     VALUES (?, 'click', ?, ?, ?, ?, ?)`
+  ).bind(sendToken, linkId, ua, ip, country, Date.now()).run());
+  return Response.redirect(row.dest, 302);
+}
+
+// GET /t/u/{send_token} -> mark the recipient unsubscribed (suppressing future
+// sends) and show a small confirmation page.
+async function trackUnsub(request, env, ctx, sendToken) {
+  const now = Date.now();
+  fireAndForget(ctx, (async () => {
+    const send = await env.DB.prepare("SELECT recipient_id FROM outreach_sends WHERE id = ?").bind(sendToken).first();
+    if (!send) return;
+    if (send.recipient_id) {
+      await env.DB.prepare(
+        "UPDATE outreach_recipients SET unsubscribed_at = ?, status = 'unsubscribed' WHERE id = ? AND unsubscribed_at IS NULL"
+      ).bind(now, send.recipient_id).run();
+    }
+    await env.DB.prepare(
+      `INSERT INTO tracking_events (send_id, event_type, user_agent, ip, country, created_at) VALUES (?, 'unsub', ?, ?, ?, ?)`
+    ).bind(sendToken, request.headers.get("user-agent") || "", request.headers.get("cf-connecting-ip") || "", (request.cf && request.cf.country) || "", now).run();
+  })());
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Unsubscribed</title><link rel="icon" type="image/png" href="/favicon.png" /><style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#070d18;color:#eef2f8;font-family:Helvetica,Arial,sans-serif;text-align:center;padding:24px}div{max-width:430px}h1{font-family:Georgia,serif;font-weight:400;font-size:1.7rem;margin:0 0 14px;color:#f2ede2}p{color:#9fb1c6;line-height:1.65;margin:0;font-size:15px}</style></head><body><div><h1>You're unsubscribed</h1><p>You won't receive any more outreach from K &amp; A Memories. If this was a mistake, just reply to our last email and we'll add you back.</p></div></body></html>`;
+  return new Response(html, { status: 200, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
+}
+
+// Turn a campaign template into per-recipient HTML: rewrite each registered link
+// to its tracked click URL, swap the {{unsubscribe}} token, and append the open
+// pixel. Only href destinations in the registry are rewritten; other content is
+// left untouched. (Used by the Phase 2 campaign-prep step.)
+function personalizeEmail(html, { baseUrl, sendToken, links }) {
+  let out = html;
+  for (const link of links || []) {
+    const clickUrl = `${baseUrl}/t/c/${sendToken}/${link.id}`;
+    out = out.replaceAll(`href="${link.destination_url}"`, `href="${clickUrl}"`);
+    out = out.replaceAll(`href='${link.destination_url}'`, `href='${clickUrl}'`);
+  }
+  out = out.replaceAll("{{unsubscribe}}", `${baseUrl}/t/u/${sendToken}`);
+  const pixel = `<img src="${baseUrl}/t/o/${sendToken}.gif" width="1" height="1" alt="" style="display:block;border:0;width:1px;height:1px;max-height:1px;max-width:1px" />`;
+  out = out.includes("</body>") ? out.replace("</body>", `${pixel}</body>`) : out + pixel;
+  return out;
+}
+
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname;
     const method = request.method;
     const { plane, slug } = hostInfo(url, env);
 
     try {
+      // ----- Cold-outreach email tracking: host-agnostic, handled before the
+      // plane split so the pixel/click/unsubscribe links work from any host. -----
+      if (path.startsWith("/t/") && method === "GET") {
+        const om = path.match(/^\/t\/o\/([^/]+)$/);
+        if (om) {
+          let tok = decodeURIComponent(om[1]);
+          if (tok.endsWith(".gif")) tok = tok.slice(0, -4);
+          return trackOpen(request, env, ctx, tok);
+        }
+        const cm = path.match(/^\/t\/c\/([^/]+)\/([^/]+)$/);
+        if (cm) return trackClick(request, env, ctx, decodeURIComponent(cm[1]), decodeURIComponent(cm[2]));
+        const um = path.match(/^\/t\/u\/([^/]+)$/);
+        if (um) return trackUnsub(request, env, ctx, decodeURIComponent(um[1]));
+      }
+
       // ----- Control plane: kamemories.com -----
       if (plane === "control") {
         if (path === "/api/stripe/webhook" && method === "POST") return handleStripeWebhook(request, env);
