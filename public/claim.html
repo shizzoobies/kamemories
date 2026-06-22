@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#070d18" />
+<title>Claim your founding code . KA Memories</title>
+<meta name="robots" content="noindex" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300&family=Hanken+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="icon" type="image/png" href="/favicon.png" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="cine">
+
+<div class="bg-stage" id="bgStage" aria-hidden="true">
+  <video class="bg-video" id="bgA" muted playsinline preload="auto"></video>
+  <video class="bg-video" id="bgB" muted playsinline preload="none"></video>
+</div>
+<div class="veil" aria-hidden="true"></div>
+<div class="grain" aria-hidden="true"></div>
+
+<header class="cine-nav">
+  <a class="cine-brand" href="/" aria-label="KA Memories home"><img class="cine-logo" src="/logo.png" alt="KA Memories" width="1200" height="747" /></a>
+  <nav class="cine-links">
+    <a class="cine-signin" href="https://demo.kamemories.com">See a demo</a>
+  </nav>
+</header>
+
+<div class="cine-auth-wrap">
+  <div class="cine-auth reveal" style="--d:1">
+    <p class="cine-eyebrow">Founding vendor</p>
+    <h1>Claim your code.</h1>
+    <p class="cine-sub">Tell us where to send it. You get a referral code that is yours to shape: pass up to 50% to your couples and keep the rest, on every booking. No cost to you, ever.</p>
+
+    <form id="form" class="claim-form">
+      <input id="business" class="cine-field" type="text" placeholder="Business name" autocomplete="organization" required />
+      <input id="name" class="cine-field" type="text" placeholder="Your name" autocomplete="name" required />
+      <input id="email" class="cine-field" type="email" placeholder="you@example.com" autocomplete="email" required />
+      <select id="type" class="cine-field cine-select">
+        <option value="">What do you do? (optional)</option>
+        <option>Photographer</option>
+        <option>Videographer</option>
+        <option>Venue</option>
+        <option>Planner or coordinator</option>
+        <option>Florist</option>
+        <option>DJ or band</option>
+        <option>Officiant</option>
+        <option>Other</option>
+      </select>
+      <input id="phone" class="cine-field" type="tel" placeholder="Phone (optional)" autocomplete="tel" />
+      <textarea id="note" class="cine-field cine-textarea" rows="3" placeholder="Anything you want us to know (optional)"></textarea>
+      <input id="company" type="text" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" />
+      <button id="submit" class="cine-btn" type="submit">Claim my founding code</button>
+    </form>
+
+    <p id="msg" class="cine-note"></p>
+
+    <div id="done" class="cine-sent" style="display:none">
+      <p class="cine-sub">Got it. We will set up your founding code and reach out at <strong id="doneTo"></strong> within a day to get you started.</p>
+      <p class="cine-note"><a href="https://demo.kamemories.com">See a live demo while you wait</a></p>
+    </div>
+  </div>
+</div>
+
+<footer class="cine-foot">
+  <a href="https://kamemories.com/" aria-label="kamemories home"><img class="cine-foot-logo" src="/logo.png" alt="KA Memories" width="1200" height="747" /></a>
+  <p class="cine-foot-copy">&copy; 2026 KA Memories. All rights reserved.</p>
+</footer>
+
+<script src="/home.js"></script>
+<script src="/claim.js"></script>
+</body>
+</html>

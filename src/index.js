@@ -298,6 +298,94 @@ async function handleContact(request, env) {
   return json({ ok: true });
 }
 
+// Founding-vendor claim form (public), reached from the tracked "Claim your code"
+// button. handleClaimContext logs the visit and prefills from the recipient;
+// handleClaim records the vendor as a "claimed" lead and emails the operator.
+async function handleClaimContext(request, env, ctx, url) {
+  const token = (url.searchParams.get("s") || "").trim();
+  if (!token) return json({});
+  const row = await env.DB.prepare(
+    `SELECT s.recipient_email AS email, r.name AS business, r.business_type AS business_type
+       FROM outreach_sends s LEFT JOIN outreach_recipients r ON r.id = s.recipient_id
+      WHERE s.id = ?`
+  ).bind(token).first();
+  if (!row) return json({});
+  fireAndForget(ctx, env.DB.prepare(
+    `INSERT INTO tracking_events (send_id, event_type, user_agent, ip, country, created_at) VALUES (?, 'claim_view', ?, ?, ?, ?)`
+  ).bind(token, request.headers.get("user-agent") || "", request.headers.get("cf-connecting-ip") || "", (request.cf && request.cf.country) || "", Date.now()).run());
+  return json({ email: row.email || "", business: row.business || "", business_type: row.business_type || "" });
+}
+
+async function handleClaim(request, env, ctx) {
+  let body;
+  try { body = await request.json(); } catch { return json({ error: "bad", message: "Bad request." }, 400); }
+  if ((body.company || "").toString().trim()) return json({ ok: true }); // honeypot
+  const token = (body.s || "").toString().trim();
+  const business = (body.business || "").toString().trim().slice(0, 160);
+  const name = (body.name || "").toString().trim().slice(0, 120);
+  const email = (body.email || "").toString().trim().toLowerCase().slice(0, 200);
+  const type = (body.type || "").toString().trim().slice(0, 60);
+  const phone = (body.phone || "").toString().trim().slice(0, 60);
+  const note = (body.note || "").toString().trim().slice(0, 2000);
+  if (!isEmail(email)) return json({ error: "email", message: "Add a valid email so we can send your code." }, 400);
+  if (!business && !name) return json({ error: "who", message: "Add your name or business." }, 400);
+
+  const now = Date.now();
+  let recipientId = null;
+  if (token) {
+    const send = await env.DB.prepare("SELECT recipient_id FROM outreach_sends WHERE id = ?").bind(token).first();
+    if (send) recipientId = send.recipient_id;
+  }
+  if (recipientId) {
+    await env.DB.prepare(
+      `UPDATE outreach_recipients SET status = 'claimed',
+         name = COALESCE(NULLIF(?, ''), name),
+         business_type = COALESCE(NULLIF(?, ''), business_type)
+       WHERE id = ?`
+    ).bind(business, type, recipientId).run();
+    fireAndForget(ctx, env.DB.prepare(
+      `INSERT INTO tracking_events (send_id, event_type, user_agent, ip, country, created_at) VALUES (?, 'claim', ?, ?, ?, ?)`
+    ).bind(token, request.headers.get("user-agent") || "", request.headers.get("cf-connecting-ip") || "", (request.cf && request.cf.country) || "", now).run());
+  } else {
+    await env.DB.prepare(
+      `INSERT INTO outreach_recipients (id, email, name, business_type, source, status, created_at)
+       VALUES (?, ?, ?, ?, 'claim_form', 'claimed', ?)
+       ON CONFLICT(email) DO UPDATE SET status = 'claimed',
+         name = COALESCE(NULLIF(excluded.name, ''), outreach_recipients.name),
+         business_type = COALESCE(NULLIF(excluded.business_type, ''), outreach_recipients.business_type)`
+    ).bind(crypto.randomUUID(), email, business, type, now).run();
+  }
+
+  const to = env.CONTACT_TO || "memories@ka-performancefl.com";
+  if (env.RESEND_API_KEY) {
+    const text = [
+      "Founding code claim from the kamemories site.",
+      "",
+      "Business: " + (business || "(none)"),
+      "Name:     " + (name || "(none)"),
+      "Email:    " + email,
+      type ? "Type:     " + type : null,
+      phone ? "Phone:    " + phone : null,
+      note ? "\nNote:\n" + note : null,
+      token ? "\nFrom outreach send " + token : "\nDirect (no tracked link).",
+    ].filter((l) => l !== null).join("\n");
+    fireAndForget(ctx, fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        from: env.MAIL_FROM || "KA Memories <memories@kamemories.com>",
+        to: [to],
+        reply_to: email,
+        subject: "Founding code claim: " + (business || name || email),
+        text: text,
+      }),
+    }));
+  } else {
+    console.log(`[dev] claim ${business} ${name} <${email}> ${type} ${phone} token=${token}`);
+  }
+  return json({ ok: true });
+}
+
 // ---------------------------------------------------------------------------
 // Event lookups and shapes
 // ---------------------------------------------------------------------------
@@ -1763,6 +1851,7 @@ function personalizeEmail(html, { baseUrl, sendToken, links }) {
     out = out.replaceAll(`href="${link.destination_url}"`, `href="${clickUrl}"`);
     out = out.replaceAll(`href='${link.destination_url}'`, `href='${clickUrl}'`);
   }
+  out = out.replaceAll("{{claim_url}}", `${baseUrl}/claim?s=${sendToken}`);
   out = out.replaceAll("{{unsubscribe}}", `${baseUrl}/t/u/${sendToken}`);
   const pixel = `<img src="${baseUrl}/t/o/${sendToken}.gif" width="1" height="1" alt="" style="display:block;border:0;width:1px;height:1px;max-height:1px;max-width:1px" />`;
   out = out.includes("</body>") ? out.replace("</body>", `${pixel}</body>`) : out + pixel;
@@ -1800,6 +1889,8 @@ export default {
         if (path === "/api/auth/me" && method === "GET") return authMe(request, env);
         if (path === "/api/auth/logout" && method === "POST") return authLogout(request, env);
         if (path === "/api/contact" && method === "POST") return handleContact(request, env);
+        if (path === "/api/claim" && method === "POST") return handleClaim(request, env, ctx);
+        if (path === "/api/claim/context" && method === "GET") return handleClaimContext(request, env, ctx, url);
 
         if (path === "/api/events" && method === "GET") return eventsList(request, env);
         if (path === "/api/events" && method === "POST") return eventsCreate(request, env);
@@ -1865,6 +1956,7 @@ export default {
           if (path === "/login") return asset(env, url, request, "/login.html");
           if (path === "/app") return asset(env, url, request, "/dashboard.html");
           if (path === "/admin") return asset(env, url, request, "/admin.html");
+          if (path === "/claim") return asset(env, url, request, "/claim.html");
         }
 
         return env.ASSETS ? env.ASSETS.fetch(request) : new Response("Not found.", { status: 404 });

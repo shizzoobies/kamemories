@@ -1007,6 +1007,11 @@ body.cinema .veil {
 .cine-auth .cine-sub { margin: 0 0 30px; }
 .cine-field { width: 100%; background: transparent; border: 0; border-bottom: 1px solid var(--cine-line); color: var(--cine-ink); font-family: "Hanken Grotesk", sans-serif; font-size: 1.05rem; padding: 14px 2px; transition: border-color 0.3s; }
 .cine-field:focus { outline: none; border-color: var(--cine-ink); }
+.cine-select { appearance: none; -webkit-appearance: none; cursor: pointer; }
+.cine-select option { background: #0a1322; color: var(--cine-ink); }
+.cine-textarea { resize: vertical; min-height: 64px; line-height: 1.5; }
+.claim-form { display: flex; flex-direction: column; gap: 18px; margin-top: 8px; }
+.claim-form .cine-btn { margin-top: 8px; }
 .cine-field::placeholder { color: var(--cine-faint); }
 .cine-auth .cine-btn { width: 100%; justify-content: center; margin-top: 24px; background: var(--cine-ink); color: #0a1322; border-color: var(--cine-ink); }
 .cine-auth .cine-btn:hover { background: transparent; color: var(--cine-ink); }
