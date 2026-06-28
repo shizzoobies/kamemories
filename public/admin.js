@@ -105,10 +105,12 @@ async function boot() {
   loadCodes();
   loadRevenue();
   loadPackageLinks();
+  loadOutreach();
   setupCollapse("revenueColhead", "revenueWrap", "kmRevenueOpen");
   setupCollapse("linksColhead", "linksWrap", "kmLinksOpen");
   setupCollapse("codesColhead", "codesWrap", "kmCodesOpen");
   setupCollapse("clientsColhead", "clientsWrap", "kmClientsOpen");
+  setupCollapse("outreachColhead", "outreachWrap", "kmOutreachOpen");
   setupCollapse("demoColhead", "demoWrap", "kmDemoOpen", false);
   if (data.assistant === false) $("asstNote").textContent = "The assistant is not switched on yet. Add the ANTHROPIC_API_KEY secret and it will appear here.";
   window.addEventListener("hashchange", route);
@@ -925,6 +927,68 @@ function setupCollapse(colheadId, wrapId, key, defaultOpen) {
   if (caret) caret.addEventListener("click", toggle);
   if (h2) { h2.style.cursor = "pointer"; h2.addEventListener("click", toggle); }
   apply();
+}
+
+// ---- Outreach (read only pipeline) ----
+let outreach = null;
+async function loadOutreach() {
+  try {
+    const r = await fetch("/api/admin/outreach", { credentials: "same-origin" });
+    if (!r.ok) return;
+    outreach = await r.json();
+    renderOutreach();
+  } catch (e) {}
+}
+function renderOutreach() {
+  if (!outreach) return;
+  const total = (outreach.stats && outreach.stats.total) || 0;
+  $("outreachCount").textContent = total + (total === 1 ? " recipient" : " recipients");
+
+  // Pipeline: a chip per status with a count.
+  const pipe = $("outreachPipeline");
+  pipe.innerHTML = "";
+  const by = (outreach.stats && outreach.stats.byStatus) || {};
+  const order = ["cold", "opened", "clicked", "replied", "claimed", "signed", "unsubscribed"];
+  if (!total) {
+    pipe.innerHTML = '<p class="admin-empty">No outreach recipients yet.</p>';
+  } else {
+    for (const st of order) {
+      if (!by[st]) continue;
+      const chip = document.createElement("div");
+      chip.className = "rev-chip";
+      chip.innerHTML = '<div class="rev-chip-amt">' + by[st] + '</div>' +
+        '<div class="rev-chip-label">' + st + '</div>';
+      pipe.appendChild(chip);
+    }
+  }
+
+  // Per campaign engagement.
+  const camps = $("outreachCampaigns");
+  camps.innerHTML = "";
+  for (const c of (outreach.campaigns || [])) {
+    const chip = document.createElement("div");
+    chip.className = "rev-chip";
+    chip.innerHTML = '<div class="rev-chip-label">' + esc(c.name || "Campaign") + '</div>' +
+      '<div class="rev-chip-n">' + (c.sent || 0) + ' sent &middot; ' + (c.opens || 0) + ' opened &middot; ' + (c.clicks || 0) + ' clicked</div>';
+    camps.appendChild(chip);
+  }
+
+  // Recipients, newest first.
+  const list = $("outreachList");
+  list.innerHTML = "";
+  const rows = outreach.recipients || [];
+  for (const rc of rows) {
+    const row = document.createElement("div");
+    row.className = "admin-client";
+    const initial = esc(((rc.name || rc.email || "?").trim().charAt(0) || "?").toUpperCase());
+    const tags = [rc.business_type, rc.source].filter(Boolean).map(esc).join(" &middot; ");
+    row.innerHTML =
+      '<div class="cl-mono">' + initial + '</div>' +
+      '<div class="cl-body"><div class="cl-email">' + esc(rc.name || rc.email) + '</div>' +
+        (rc.name ? '<div class="admin-sub" style="margin:2px 0 0">' + esc(rc.email) + '</div>' : '') + '</div>' +
+      '<div class="cl-meta">' + esc(rc.status || "cold") + (tags ? ' &middot; ' + tags : '') + ' &middot; ' + fmtDate(rc.created_at) + '</div>';
+    list.appendChild(row);
+  }
 }
 
 // ---- Revenue ----

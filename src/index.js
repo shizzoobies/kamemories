@@ -751,6 +751,47 @@ async function adminOverview(request, env) {
   });
 }
 
+// Read-only cold-outreach pipeline for the operator console: recipients with
+// their status, the per status counts, and per campaign engagement (sent, unique
+// human opens, unique clicks). Sending stays in Gmail; this only reads.
+async function adminOutreach(request, env) {
+  const gate = await requireAdmin(request, env);
+  if (gate.error) return gate.error;
+
+  const recipientsQ = await env.DB.prepare(
+    `SELECT id, email, name, business_type, source, status, created_at, unsubscribed_at
+       FROM outreach_recipients ORDER BY created_at DESC LIMIT 1000`
+  ).all();
+  const recipients = recipientsQ.results || [];
+
+  const byStatusQ = await env.DB.prepare(
+    `SELECT COALESCE(status, 'cold') AS status, COUNT(*) AS n
+       FROM outreach_recipients GROUP BY COALESCE(status, 'cold')`
+  ).all();
+  const byStatus = {};
+  let total = 0;
+  for (const row of (byStatusQ.results || [])) { byStatus[row.status] = row.n; total += row.n; }
+
+  // Per campaign: sends, unique non prefetch opens, unique clicks.
+  const campaignsQ = await env.DB.prepare(
+    `SELECT c.id, c.name, c.subject, c.created_at,
+       (SELECT COUNT(*) FROM outreach_sends s WHERE s.campaign_id = c.id) AS sent,
+       (SELECT COUNT(DISTINCT s.id) FROM outreach_sends s
+          JOIN tracking_events e ON e.send_id = s.id
+         WHERE s.campaign_id = c.id AND e.event_type = 'open' AND e.is_probably_prefetch = 0) AS opens,
+       (SELECT COUNT(DISTINCT s.id) FROM outreach_sends s
+          JOIN tracking_events e ON e.send_id = s.id
+         WHERE s.campaign_id = c.id AND e.event_type = 'click') AS clicks
+     FROM outreach_campaigns c ORDER BY c.created_at DESC`
+  ).all();
+
+  return json({
+    stats: { total, byStatus },
+    campaigns: campaignsQ.results || [],
+    recipients,
+  });
+}
+
 async function adminCreateEvent(request, env) {
   const gate = await requireAdmin(request, env);
   if (gate.error) return gate.error;
@@ -1941,6 +1982,7 @@ export default {
         }
 
         if (path === "/api/admin/overview" && method === "GET") return adminOverview(request, env);
+        if (path === "/api/admin/outreach" && method === "GET") return adminOutreach(request, env);
         if (path === "/api/admin/events" && method === "POST") return adminCreateEvent(request, env);
         const adminEv = path.match(/^\/api\/admin\/events\/([^/]+)$/);
         if (adminEv) {
