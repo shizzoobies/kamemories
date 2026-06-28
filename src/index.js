@@ -1881,6 +1881,25 @@ export default {
         if (um) return trackUnsub(request, env, ctx, decodeURIComponent(um[1]));
       }
 
+      // ----- Apple App Site Association: lets the iOS companion app (repo
+      // kamemories-ios) claim the magic-link URL, so /auth/verify opens the app
+      // instead of Safari. Static JSON, host-agnostic, additive. It changes no
+      // existing route and is irrelevant to anyone without the app installed. -----
+      if (path === "/.well-known/apple-app-site-association" && method === "GET") {
+        return json({
+          applinks: {
+            details: [
+              {
+                appIDs: ["7P986JMA56.com.shizzoobies.kamemories"],
+                components: [
+                  { "/": "/auth/verify", comment: "The emailed magic link opens the app instead of Safari." },
+                ],
+              },
+            ],
+          },
+        });
+      }
+
       // ----- Control plane: kamemories.com -----
       if (plane === "control") {
         if (path === "/api/stripe/webhook" && method === "POST") return handleStripeWebhook(request, env);
